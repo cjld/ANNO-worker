@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "mywindow.h"
 #include <QApplication>
 // json library from https://github.com/danielaparker/jsoncons
 #include "jsoncons/json.hpp"
@@ -151,6 +152,10 @@ void tictoc(string msg="") {
 
 int main(int argc, char *argv[])
 {
+    /*
+     * http://stackoverflow.com/questions/17979185/qt-5-1-qapplication-without-display-qxcbconnection-could-not-connect-to-displ
+     * if not going to use gui, add -platform offscreen command line option
+     * */
     QApplication a(argc, argv);
     if (argc >= 2 && string(argv[1])=="server") {
         ImageCutController ctl;
@@ -204,6 +209,7 @@ int main(int argc, char *argv[])
                     res["status"] = "error";
                     res["error"] = string("command '")+cmdstr+("' not found");
                 }
+                //cerr << cmdstr << ' ' << res.to_string() <<  endl;
             } catch (...) {
                 res["status"] = "error";
                 res["error"] = "fatal error occur";
@@ -214,7 +220,7 @@ int main(int argc, char *argv[])
             tictoc("calc cmd");
         }
     } else {
-        MainWindow w;
+        MyWindow w;
         w.show();
 
         return a.exec();
