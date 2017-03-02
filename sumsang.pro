@@ -36,7 +36,9 @@ SOURCES += main.cpp\
     ./zz/meanshiftSegmentation/rlist.cpp \
     cutoutsettings.cpp \
     alphamatting.cpp \
-    mywindow.cpp
+    mywindow.cpp \
+    form.cpp \
+    multilevel.cpp
 
 HEADERS  += mainwindow.h \
     ./zz/GMM/CmCv.h \
@@ -81,11 +83,14 @@ HEADERS  += mainwindow.h \
     jsoncons/output_format.hpp \
     jsoncons/ovectorstream.hpp \
     jsoncons/parse_error_handler.hpp \
-    mywindow.h
+    mywindow.h \
+    form.h \
+    multilevel.h
 
 LIBS += -L/usr/local/lib/ -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_imgcodecs
 
 FORMS    += mainwindow.ui \
-    mywindow.ui
-QMAKE_CXXFLAGS += -std=c++11
+    mywindow.ui \
+    form.ui
+QMAKE_CXXFLAGS += -std=c++14
 #CONFIG += console debug

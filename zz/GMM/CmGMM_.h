@@ -78,7 +78,8 @@ template<int D> double CmGMM_<D>::P(int i, CVecT &s) const
 	CVecT ns = s - guassian.mean; // Normalized sample
 	const Matx<double, D, D> &inv = guassian.inv;
 	double d = (ns.t() * inv * ns)(0);
-	return 0.0635 / sqrt(guassian.det) * exp(-0.5 * d);   // 1/(2*pi)^1.5 = 0.0635;
+    double p = 0.0635 / sqrt(guassian.det) * exp(-0.5 * d); // 1/(2*pi)^1.5 = 0.0635;
+    return p;
 }
 
 template<int D> void CmGMM_<D>::BuildGMMs(CMat& sDd, Mat& idx1i, CMat& w1d)
