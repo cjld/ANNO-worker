@@ -133,7 +133,7 @@ MyWindow::~MyWindow()
 }
 
 void MyWindow::checkSeed(int x, int y) {
-    if (selection.get(x,y) == 0)
+    if ((bool)selection.get(x,y) == (bool)is_delete)
         seed.push_back(make_pair(x,y));
 }
 
@@ -493,16 +493,18 @@ void MyWindow::seedMultiGraphcut() {
     vector<Vec3d> Seeds;
     Mat compli;
 
+#define check_selection(selection, x, y) (bool)(selection.get(x,y)&color) == (bool)is_delete
+
     for (int x=xmin; x<xmax; x++) {
         for (int y=ymin; y<ymax; y++) {
             if (x<0 || x>=selection.w || y<0 || y>=selection.h) continue;
             bool is_edge = false;
-            if ((selection.get(x,y)&color) == 0) continue;
+            if (check_selection(selection, x, y)) continue;
             for (int i=0; i<4; i++) {
                 int xx = dx[i]+x;
                 int yy = dy[i]+y;
                 if (xx<0 || xx>=selection.w || yy<0 || yy>=selection.h) continue;
-                if ((selection.get(xx,yy)&color) == 0)  {
+                if (check_selection(selection, xx, yy))  {
                     is_edge = true;
                     break;
                 }
@@ -515,7 +517,10 @@ void MyWindow::seedMultiGraphcut() {
     for (int i=0; i<seed.size(); i++) {
         int x = seed[i].first;
         int y = seed[i].second;
-        selection.get(x,y) |= color;
+        if (is_delete)
+            selection.get(x,y) = 0;
+        else
+            selection.get(x,y) |= color;
         vecWeight.push_back(1.0/seed.size());
         Seeds.push_back(color2vec(image.get(x,y)));
     }
@@ -549,11 +554,23 @@ void MyWindow::seedMultiGraphcut() {
         }
     Multilevel mt;
     mt.set_image(image);
-    mt.set_selection(selection);
+    if (is_delete) {
+        MyImage selection_reverse = selection;
+        for (auto &c : selection_reverse.buffer) c ^= color;
+        mt.set_selection(selection_reverse);
+    } else
+        mt.set_selection(selection);
     MyImage trimap = mt.update_seed(seed, fgGMM, max_prop);
+    int c = color;
+    if (!is_delete) c=0;
     for (int y=0; y<trimap.h; y++)
         for (int x=0; x<trimap.w; x++)
-            if (trimap.get(x,y) > 255*0.75) selection.get(x,y) |= color;
+            if ((trimap.get(x,y)&255) > 255*0.75) {
+                if (is_delete)
+                    selection.get(x,y) = 0;
+                else
+                    selection.get(x,y) |= color;
+            }
     emit selection_changed();
 }
 
@@ -681,7 +698,7 @@ void MyWindow::draw(QPoint s, QPoint t) {
     brush_size = 5;
     is_delete = is_shift_press;
     int c = 0x50cc0000;
-    if (is_delete) c = 0x50cc00;
+    if (!is_delete) c = 0xaa00cc00;
     drawCircle(draw_mask, t.x(), t.y(), brush_size, c);
     drawLine(draw_mask, s.x(), s.y(), t.x(), t.y(), brush_size, c);
     xmin = t.x(), xmax = s.x();
