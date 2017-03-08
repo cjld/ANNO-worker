@@ -10,6 +10,9 @@ Form::Form(QWidget *parent) :
 {
     window = 0;
     ui->setupUi(this);
+    cdis = 0;
+    connect(ui->horizontalSlider, &QSlider::valueChanged,
+            this, &Form::colorDistanceChange);
 }
 
 Form::~Form()
@@ -39,18 +42,20 @@ void Form::paintEvent(QPaintEvent *) {
 
     int bin = 10, of = 20;
     painter.setPen(Qt::NoPen);
+    MyImage &image = window->ctl.image;
+    MyImage &selection = window->ctl.selection;
 
     for (int x=window->prev_pos.x()-of,xx=0; x<window->prev_pos.x()+of; x++,xx++) {
         for (int y=window->prev_pos.y()-of, yy=0; y<window->prev_pos.y()+of; y++,yy++) {
-            if (x<0 || x>=window->image.w || y<0 || y>=window->image.h)
+            if (x<0 || x>=image.w || y<0 || y>=image.h)
                 continue;
-            b.setColor(QColor(window->image.get(x,y)));
+            b.setColor(QColor(image.get(x,y)));
             //b.setColor(Qt::black);
             //qDebug() << b.color();
-            painter.setBrush(QColor(window->image.get(x,y)));
+            painter.setBrush(QColor(image.get(x,y)));
             painter.drawRect(xx*bin,yy*bin,bin,bin);
             QColor cl;
-            cl.setRgba(window->selection.get(x,y));
+            cl.setRgba(selection.get(x,y));
             painter.setBrush(cl);
             painter.drawRect(xx*bin,yy*bin,bin,bin);
         }
@@ -59,15 +64,15 @@ void Form::paintEvent(QPaintEvent *) {
     for (int x=window->prev_pos.x()-of,xx=0; x<window->prev_pos.x()+of; x++,xx++) {
         for (int y=window->prev_pos.y()-of, yy=0; y<window->prev_pos.y()+of; y++,yy++) {
 
-            if (x<0 || x>=window->image.w || y<0 || y>=window->image.h)
+            if (x<0 || x>=image.w || y<0 || y>=image.h)
                 continue;
-            if (y+1 < window->image.h) {
-                if (!colorDistance(window->image.get(x,y), window->image.get(x,y+1), window->k)) {
+            if (y+1 < image.h) {
+                if (!colorDistance(image.get(x,y), image.get(x,y+1), cdis)) {
                     painter.drawLine(xx*bin,yy*bin+bin,xx*bin+bin,yy*bin+bin);
                 }
             }
-            if (x+1 < window->image.w) {
-                if (!colorDistance(window->image.get(x,y), window->image.get(x+1,y), window->k)) {
+            if (x+1 < image.w) {
+                if (!colorDistance(image.get(x,y), image.get(x+1,y), cdis)) {
 
                     painter.drawLine(xx*bin+bin,yy*bin,xx*bin+bin,yy*bin+bin);
                 }

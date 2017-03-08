@@ -6,11 +6,13 @@
 #include <iostream>
 #include <ctime>
 #include <QElapsedTimer>
+#include <mutex>
 using jsoncons::json;
 
 #include <QtNetwork/QtNetwork>
+#include "multilevel.h"
 
-struct ImageCutController : public QObject{
+struct ImageCutController : public QObject {
 
     QImage image;
     ImageCutOut *cutout;
@@ -138,6 +140,7 @@ struct ImageCutController : public QObject{
     }
 };
 
+
 void tictoc(string msg="") {
     return;
     static QElapsedTimer ct;
@@ -157,8 +160,10 @@ int main(int argc, char *argv[])
      * if not going to use gui, add -platform offscreen command line option
      * */
     QApplication a(argc, argv);
+    std::mutex output_lock;
     if (argc >= 2 && string(argv[1])=="server") {
-        ImageCutController ctl;
+        MultilevelController ctl;
+        ctl.output_lock = &output_lock;
         ios_base::sync_with_stdio(false);
         json cmd;
         /* command json contain
@@ -176,6 +181,7 @@ int main(int argc, char *argv[])
         int ts=0;
         tictoc();
         while (getline(cin, line)) {
+            bool async = false;
             tictoc("wait cmd");
             cmd.clear();
             res.clear();
@@ -189,6 +195,7 @@ int main(int argc, char *argv[])
                     res["data"].set("ts", cmd["data"]["ts"]);
                     ts = cmd["data"]["ts"].as<int>();
                 }
+                ctl.res_header = res;
                 if (cmdstr == "exit") {
                     cout << res;
                     cout.flush();
@@ -200,7 +207,10 @@ int main(int argc, char *argv[])
                     res["data"].set("return", ctl.load_url(url));
                 } else
                 if (cmdstr == "paint") {
-                    res["data"].set("contours", ctl.paint(cmd["data"])["contours"]);
+                    json data = ctl.paint(cmd["data"])["contours"];
+                    if (data.has_member("async") && data["async"] == true)
+                        async = true;
+                    res["data"].set("contours", data);
                 } else
                 if (cmdstr == "load-region") {
                     json data = ctl.load_region(cmd["data"]);
@@ -215,8 +225,12 @@ int main(int argc, char *argv[])
                 res["error"] = "fatal error occur";
             }
             //cerr << res.to_string().size() << ' ' << ts <<  endl;
-            cout << res << endl;
-            cout.flush();
+            if (!async) {
+                output_lock.lock();
+                cout << res << endl;
+                cout.flush();
+                output_lock.unlock();
+            }
             tictoc("calc cmd");
         }
     } else {

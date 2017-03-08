@@ -18,7 +18,9 @@ public:
     ~Form();
     Ui::Form *ui;
     MyWindow *window;
+    int cdis;
     void paintEvent(QPaintEvent *);
+    void colorDistanceChange(int v) {cdis = v;update();}
 
 private:
 };
