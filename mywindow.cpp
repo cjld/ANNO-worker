@@ -56,6 +56,31 @@ void findContourTest() {
     Multilevel::print(selection);
 }
 
+void diluteTest() {
+    MyImage image(10,10), img1(10,10), img2(10,10);
+    for (int y=0; y<image.h; y++)
+        for (int x=0; x<image.w; x++)
+            if (((x/3 ^ y/3)&1) == 0) {
+                image.get(x,y) = 0;
+                if (x%3 == 1 && y %3 == 1)
+                    image.get(x,y) = 255;
+            }
+    for (int y=0; y<image.h; y++)
+        for (int x=0; x<image.w; x++) {
+            image.get(x,y) = (~image.get(x,y))&255;
+        }
+    Multilevel::print(image);
+    Multilevel::dilute(image, 1);
+    for (int y=0; y<image.h; y++)
+        for (int x=0; x<image.w; x++) {
+            auto c = image.get(x,y) >> 16;
+            img1.get(x,y) = (~c&1)*255;
+            img2.get(x,y) = ((c>>1)&1)*255;
+        }
+    Multilevel::print(img1);
+    Multilevel::print(img2);
+}
+
 MyWindow::MyWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MyWindow)
@@ -72,7 +97,8 @@ MyWindow::MyWindow(QWidget *parent) :
     open("/home/cjld/Pictures/1405918-mountain_2.jpg");
     prev_pos = QPoint(0,0);
     is_shift_press = false;
-    findContourTest();
+    //findContourTest();
+    diluteTest();
 }
 
 

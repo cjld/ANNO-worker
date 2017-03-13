@@ -7,6 +7,9 @@
 
 #define FG_COMPONENTS 4
 #define BG_COMPONENTS 8
+#define LOCAL_EXPAND 5
+#define PROP_MULTIPLY 32
+#define EDGE_POW 1.1
 
 Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
@@ -95,7 +98,7 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                 int id1 = x+y*img.w;
                 int c1 = img.get(x,y);
                 double fProp = fgGMM.P(color2vec(c1));
-                fProp = -log(fProp / max_prop) * 16 * pow3 * pow3; //27
+                fProp = -log(fProp / max_prop) * PROP_MULTIPLY * pow3 * pow3; //27
                 bool is_seed = false;
                 if ((seedimg.get(x,y)&1) || lowc > th_high) {
                     g.add_tweights(id1, DBL_MAX, 0);
@@ -115,7 +118,7 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                     int c2 = img.get(xx,yy);
                     double dis = colorDis(c1,c2);
                     //dis = exp(-dis/(255*255))*this->k*300;
-                    dis = 1 / (dis/255./255.+0.001) * 60 * pow3;// * pow(this->k/30.0,3);
+                    dis = 1 / (pow(dis/255./255., EDGE_POW)+0.001) * 60 * pow3;// * pow(this->k/30.0,3);
                     //dis=0;
                     // TODO: normalize it
                     g.add_edge(id1, id2, dis, dis);
@@ -142,7 +145,7 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                 }
             }
         if (i) {
-            qDebug() << "up sampleing";
+            qDebug() << "up sampling";
             // 4 byte, abcd, c means pre trimap, d means graphcut result
             trimap = up_sample(trimap, imgs[i-1]);
         } else {
@@ -180,8 +183,58 @@ MyImage Multilevel::down_sample(MyImage &img) {
 #define RGB
 #undef RGB
 
+
+void Multilevel::dilute(MyImage &low, int size) {
+    for (int y=0; y<low.h; y++) {
+        for (int x=0; x<low.w; x++) {
+            auto &c1 = low.get(x,y);
+            c1 |= (c1&3^1)<<16;
+        }
+    }
+    for (int i=0; i<size; i++) {
+        // dilute x
+        for (int y=0; y<low.h; y++) {
+            for (int x=0; x<low.w-1; x++) {
+                auto &c1 = low.get(x,y);
+                auto &c2 = low.get(x+1,y);
+                auto c3 = ((c1 | c2) & (1 << 16)) << 2;
+                auto c4 = ((c1 | c2) & (1 << 17)) << 2;
+                c1 |= c3;
+                c2 |= c3;
+                c1 |= c4;
+                c2 |= c4;
+            }
+        }
+        // dilute y
+        for (int y=0; y<low.h-1; y++) {
+            for (int x=0; x<low.w; x++) {
+                auto &c1 = low.get(x,y);
+                auto &c2 = low.get(x,y+1);
+                auto c3 = ((c1 | c2) & (1 << 18)) << 2;
+                auto c4 = ((c1 | c2) & (1 << 19)) << 2;
+                c1 |= c3;
+                c2 |= c3;
+                c1 |= c4;
+                c2 |= c4;
+            }
+        }
+        for (int y=0; y<low.h; y++) {
+            for (int x=0; x<low.w; x++) {
+                auto &c1 = low.get(x,y);
+                int mask = ((1 << 16)-1);
+                c1 = (c1 & mask) | ((c1 >> 4) & ~mask);
+            }
+        }
+    }
+
+}
+
 MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
+
+    int cc1 = 0, cc2 = 0, cc3 = 0, cc4 = 0;
     MyImage img(high.w, high.h);
+    dilute(low, 2);
+
     for (int y=0; y<img.h; y++) {
         for (int x=0; x<img.w; x++) {
             float lowxf = x/3.0, lowyf = y/3.0;
@@ -195,11 +248,24 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
             float g = ((c>>8)&255)/255.;
             float b = ((c)&255)/255.;
 
-            int pre_color = low.get(lowx,lowy) >> 8;
+            bool pass = false;
+            cc1++;
+            /*
+            int pre_color = (low.get(lowx,lowy) >> 8) & 255;
             if (pre_color < th_low || pre_color > th_high) {
                 img.get(x,y) = pre_color;
-                continue;
+                cc2++;
+                pass = true;
             }
+            */
+            int tc = low.get(lowx, lowy) >> 16;
+            if (tc == 1 || tc == 2) {
+                img.get(x,y) = low.get(lowx,lowy)&255;
+                cc3++;
+                if (pass) cc4++;
+                pass = true;
+            }
+            if (pass) continue;
 
             for (int dy=-2;dy<=2;dy++)
                 for (int dx=-2;dx<=2;dx++) {
@@ -250,6 +316,7 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
                     ib;
         }
     }
+    qDebug() << cc2*1./cc1 << cc3*1./cc1 << cc4*1./cc1 << cc1;
     return img;
 }
 
@@ -429,10 +496,10 @@ void MultilevelController::draw(QPoint s, QPoint t) {
     if (xmin>xmax) swap(xmin,xmax);
     ymin = t.y(), ymax = s.y();
     if (ymin>ymax) swap(ymin,ymax);
-    xmin -= brush_size * 5;
-    xmax += brush_size * 5;
-    ymin -= brush_size * 5;
-    ymax += brush_size * 5;
+    xmin -= brush_size * LOCAL_EXPAND;
+    xmax += brush_size * LOCAL_EXPAND;
+    ymin -= brush_size * LOCAL_EXPAND;
+    ymax += brush_size * LOCAL_EXPAND;
     seed_cv.notify_one();
     //updateSeed();
 }

@@ -92,5 +92,5 @@ LIBS += -L/usr/local/lib/ -lopencv_stitching -lopencv_objdetect -lopencv_superre
 FORMS    += mainwindow.ui \
     mywindow.ui \
     form.ui
-QMAKE_CXXFLAGS += -std=c++14
+QMAKE_CXXFLAGS += -std=c++14 -g
 #CONFIG += console debug

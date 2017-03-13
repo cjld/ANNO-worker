@@ -47,6 +47,7 @@ public:
     // low is the mask, high is the origin image
     // Joint Bilateral Upsampling (JBU) [Kopf et al. 2007]
     MyImage up_sample(MyImage &low, MyImage &high);
+    static void dilute(MyImage &low, int size);
     vector<MyImage> imgs;
     vector<MyImage> selections;
     void test();
