@@ -382,7 +382,7 @@ MultilevelController::MultilevelController(): QObject(),  fgGMM(FG_COMPONENTS), 
             is_changed = true;
             seed_copy = seed;
             seed.clear();
-            seed_lock.unlock();
+            lk.unlock();
             updateSeed();
             if (output_lock)
                 printContours(res_header);
