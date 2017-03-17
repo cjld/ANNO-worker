@@ -26,6 +26,7 @@ public:
             buffer[i] = fill;
     }
     unsigned int &get(int i=0, int j=0) {return buffer[i+j*w];}
+    unsigned int getlastb(int i=0, int j=0) {return buffer[i+j*w]&255;}
 };
 
 Vec3d color2vec(unsigned int a);
