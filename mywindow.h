@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QPainter>
 #include "form.h"
-#include "zz/GMM/CmGMM_.h"
+#include "GMM/CmGMM_.h"
 #include <mutex>
 #include <condition_variable>
 #include <thread>

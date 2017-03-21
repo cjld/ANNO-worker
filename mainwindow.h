@@ -4,7 +4,6 @@
 #include <QMainWindow>
 #include <QPaintEvent>
 #include <QPainterPath>
-#include "zz/imagecut.h"
 
 namespace Ui {
 class MainWindow;

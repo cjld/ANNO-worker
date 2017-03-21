@@ -1,6 +1,6 @@
 #ifndef MULTILEVEL_H
 #define MULTILEVEL_H
-#include "zz/GMM/CmGMM_.h"
+#include "GMM/CmGMM_.h"
 #include <mutex>
 #include <condition_variable>
 #include <thread>
@@ -26,6 +26,7 @@ public:
             buffer[i] = fill;
     }
     unsigned int &get(int i=0, int j=0) {return buffer[i+j*w];}
+    unsigned int getlastb(int i=0, int j=0) {return buffer[i+j*w]&255;}
 };
 
 Vec3d color2vec(unsigned int a);

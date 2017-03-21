@@ -3,7 +3,7 @@
 #include "ui_form.h"
 #include <QFileDialog>
 #include <QDebug>
-#include "zz/graphCut/graph.h"
+#include "graphCut/graph.h"
 #include <set>
 #include "multilevel.h"
 
@@ -138,7 +138,7 @@ void MyWindow::paintEvent(QPaintEvent *e) {
     QImage mask((uchar *)&ctl.draw_mask.get(), ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
     painter.drawImage(0,offset,mask);
     {
-        lock_guard<mutex> lock(ctl.selection_lock);
+        //lock_guard<mutex> lock(ctl.selection_lock);
         QImage qselection((uchar *)&ctl.selection.get(), ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
         painter.drawImage(0,offset,qselection);
     }

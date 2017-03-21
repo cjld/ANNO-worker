@@ -1,5 +1,5 @@
 #include "multilevel.h"
-#include "zz/graphCut/graph.h"
+#include "graphCut/graph.h"
 #include <iostream>
 #include <QDebug>
 #include <QtNetwork/QtNetwork>
@@ -104,9 +104,11 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                     g.add_tweights(id1, DBL_MAX, 0);
                     is_seed = true;
                 }
-                if (!sel.get(x,y) && fProp>0 && !is_seed)
+                bool is_fg = (sel.get(x,y)&255)>127;
+                bool is_bg = ((sel.get(x,y)>>8)&255)>127;
+                if (!is_bg && !is_fg && fProp>0 && !is_seed)
                     g.add_tweights(id1, 0, fProp);
-                if ((lowc < th_low || (seedimg.get(x,y)>>1)) && !is_seed)
+                if ((lowc < th_low || (seedimg.get(x,y)>>1) || is_bg) && !is_seed)
                     g.add_tweights(id1, 0, DBL_MAX);
                 // TODO: optimise
                 //if (sel.get(x,y) && !is_seed) continue;
@@ -383,7 +385,10 @@ MultilevelController::MultilevelController(): QObject(),  fgGMM(FG_COMPONENTS), 
             seed_copy = seed;
             seed.clear();
             lk.unlock();
-            updateSeed();
+            {
+                lock_guard<mutex> lg(selection_lock);
+                updateSeed();
+            }
             if (output_lock)
                 printContours(res_header);
         }
@@ -541,7 +546,8 @@ void MultilevelController::seedMultiGraphcut() {
         int x = seed[i].first;
         int y = seed[i].second;
         if (is_delete)
-            selection.get(x,y) = 0;
+            // clean last byte
+            selection.get(x,y) &= ~color;
         else
             selection.get(x,y) |= color;
         vecWeight.push_back(1.0/seed.size());
@@ -588,7 +594,7 @@ void MultilevelController::seedMultiGraphcut() {
         for (int x=0; x<trimap.w; x++)
             if ((trimap.get(x,y)&255) > 255*0.75) {
                 if (is_delete)
-                    selection.get(x,y) = 0;
+                    selection.get(x,y) &= ~color;
                 else
                     selection.get(x,y) |= color;
             }
@@ -613,9 +619,9 @@ void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
     MyImage o(image.w, image.h);
     for (int y=0; y<image.h; y++) {
         for (int x=0; x<image.w; x++) {
-            auto c1 = image.get(x,y);
+            auto c1 = image.getlastb(x,y);
             auto c2 = 0;
-            if (y) c2 = image.get(x,y-1);
+            if (y) c2 = image.getlastb(x,y-1);
             if (!o.get(x,y) && c1 && !c2) {
                 int sx = x, sy = y, d=0, pred=-1;
                 vector<pair<int,int>> v;
@@ -633,9 +639,9 @@ void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
                     int fx2 = fx1+dx[(d+3)&3];
                     int fy2 = fy1+dy[(d+3)&3];
                     if (fx1>=0 && fx1<image.w && fy1>=0 && fy1<image.h)
-                        fc1 = image.get(fx1, fy1);
+                        fc1 = image.getlastb(fx1, fy1);
                     if (fx2>=0 && fx2<image.w && fy2>=0 && fy2<image.h)
-                        fc2 = image.get(fx2, fy2);
+                        fc2 = image.getlastb(fx2, fy2);
                     sx += dx[d];
                     sy += dy[d];
                     if (!fc1)
@@ -732,47 +738,59 @@ json MultilevelController::paint(json data) {
 }
 
 json MultilevelController::load_region(json data) {
+    lock_guard<mutex> lg(selection_lock);
+    {
+        lock_guard<mutex> lg2(seed_lock);
+        seed.clear();
+    }
     for (auto &kv : stroke_pixels)
         for (auto &xy : kv.second) {
             stroke_id.get(xy.first, xy.second) = 0;
         }
     stroke_isbg.clear();
     stroke_pixels.clear();
-    vector< vector<Point> > contours;
     json contours_json = data["contours"];
-    contours.resize(contours_json.size());
-    for (int i=0; i<(int)contours.size(); i++) {
-        json tmp = contours_json[i];
-        for (int j=0; j<(int)tmp.size(); j++)
-            contours[i].push_back(Point(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>()));
-    }
-    QPainterPath cutSelectPath = QPainterPath();
-    for (int i = 0; i < (int)contours.size(); i++) {
-        cutSelectPath.moveTo(QPoint(contours[i][0].x, contours[i][0].y));
-        for (vector<Point>::iterator it = contours[i].begin(); it != contours[i].end(); it++)
-            cutSelectPath.lineTo(QPoint((*it).x, (*it).y));
-        cutSelectPath.lineTo(QPoint(contours[i][0].x, contours[i][0].y));
-    }
-    QImage qStrokeMask = QImage(image.w, image.h, QImage::Format_ARGB32_Premultiplied);
-    qStrokeMask.fill(0);
-    QPainter pt;
-    pt.begin(&qStrokeMask);
-    pt.setBrush(Qt::white);
-    pt.setPen(Qt::NoPen);
-    pt.drawPath(cutSelectPath);
     int segs=0;
-    for (int y=0; y<image.h; y++) {
-        QRgb* scanelineStrokeMask = (QRgb*)qStrokeMask.scanLine(y);
-        for (int x=0; x<image.w; x++) {
-            int grayValue = qGray(scanelineStrokeMask[x]);
-            draw_mask.get(x,y) = 0;
-            if (grayValue>100) {
-                selection.get(x,y) = 255;
-                segs ++;
-            } else
-                selection.get(x,y) = 0;
+    auto draw_selection = [&](json contours_json, unsigned int color) {
+        vector< vector<Point> > contours;
+        contours.resize(contours_json.size());
+        for (int i=0; i<(int)contours.size(); i++) {
+            json tmp = contours_json[i];
+            for (int j=0; j<(int)tmp.size(); j++)
+                contours[i].push_back(Point(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>()));
         }
-    }
+        QPainterPath cutSelectPath = QPainterPath();
+        for (int i = 0; i < (int)contours.size(); i++) {
+            cutSelectPath.moveTo(QPoint(contours[i][0].x, contours[i][0].y));
+            for (vector<Point>::iterator it = contours[i].begin(); it != contours[i].end(); it++)
+                cutSelectPath.lineTo(QPoint((*it).x, (*it).y));
+            cutSelectPath.lineTo(QPoint(contours[i][0].x, contours[i][0].y));
+        }
+        QImage qStrokeMask = QImage(image.w, image.h, QImage::Format_ARGB32_Premultiplied);
+        qStrokeMask.fill(0);
+        QPainter pt;
+        pt.begin(&qStrokeMask);
+        pt.setBrush(Qt::white);
+        pt.setPen(Qt::NoPen);
+        pt.drawPath(cutSelectPath);
+        for (int y=0; y<image.h; y++) {
+            QRgb* scanelineStrokeMask = (QRgb*)qStrokeMask.scanLine(y);
+            for (int x=0; x<image.w; x++) {
+                int grayValue = qGray(scanelineStrokeMask[x]);
+                draw_mask.get(x,y) = 0;
+                if (grayValue>100) {
+                    selection.get(x,y) |= color;
+                    segs ++;
+                }
+            }
+        }
+    };
+    for (int y=0; y<image.h; y++)
+        for (int x=0; x<image.w; x++)
+            selection.get(x,y) = 0;
+    draw_selection(contours_json, 255);
+    if (data.has_member("bgContours"))
+        draw_selection(data["bgContours"], 255<<8);
     //pt.drawRect(0,0,100,100);
     //cutout->qStrokeMask.save("/tmp/check-region.png");
     json res = json::object();
