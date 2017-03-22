@@ -1,5 +1,5 @@
 #include "multilevel.h"
-#include "zz/graphCut/graph.h"
+#include "graphCut/graph.h"
 #include <iostream>
 #include <QDebug>
 #include <QtNetwork/QtNetwork>

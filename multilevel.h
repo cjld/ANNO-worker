@@ -1,6 +1,6 @@
 #ifndef MULTILEVEL_H
 #define MULTILEVEL_H
-#include "zz/GMM/CmGMM_.h"
+#include "GMM/CmGMM_.h"
 #include <mutex>
 #include <condition_variable>
 #include <thread>

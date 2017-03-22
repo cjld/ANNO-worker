@@ -3,7 +3,7 @@
 #include "ui_form.h"
 #include <QFileDialog>
 #include <QDebug>
-#include "zz/graphCut/graph.h"
+#include "graphCut/graph.h"
 #include <set>
 #include "multilevel.h"
 
