@@ -136,12 +136,8 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
         double flow = g.maxflow();
         tictoc(-(i*5+5)-1, "maxflow");
         tictoc(-(i*5+5)-2, "upsampleing");
-        for (int y=0; y<img.h; y++)
-            for (int x=0; x<img.w; x++) {
-                if (x<minx || x>=maxx || y<miny || y>=maxy) {
-                    trimap.get(x,y) = sel.get(x,y)&255;
-                    continue;
-                }
+        for (int y=miny; y<maxy; y++)
+            for (int x=minx; x<maxx; x++) {
                 int id1 = x+y*img.w;
                 // 4 byte, abcd, c means is not passed, d means pre trimap
                 int lowd = trimap.get(x,y)&255;
@@ -152,9 +148,9 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                         trimap.get(x,y) = 255;
                     continue;
                 }
-                trimap.get(x,y) = lowd<<8;
+                trimap.get(x,y) = 0;
                 if (g.what_segment(id1) == Graph<double,double,double>::SOURCE) {
-                    trimap.get(x,y) |= 255;
+                    trimap.get(x,y) = 255;
                 }
             }
         int next_minx = 1<<30, next_maxx = 0;
