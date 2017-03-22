@@ -70,4 +70,5 @@ FORMS    += \
     mywindow.ui \
     form.ui
 QMAKE_CXXFLAGS += -std=c++14 -g
+QMAKE_CXX = g++-5
 #CONFIG += console debug

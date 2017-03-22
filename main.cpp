@@ -12,20 +12,36 @@ using jsoncons::json;
 #include "multilevel.h"
 
 
-void tictoc(string msg="") {
-    return;
-    static QElapsedTimer ct;
-    static bool first = true;
-    if (first) ct.start();
-    else {
-        cerr << ct.elapsed() << "ms " << msg << endl;
-        ct.restart();
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) throw std::runtime_error("popen() failed!");
+    while (!feof(pipe.get())) {
+        if (fgets(buffer.data(), 128, pipe.get()) != NULL)
+            result += buffer.data();
     }
-    first = false;
+    return result;
+}
+
+bool timeEvaluate;
+
+void tictoc(int ts, string msg="") {
+    if (!timeEvaluate) return;
+    static map<int, QElapsedTimer> ct;
+    if (ct.find(ts) != ct.end())
+        cerr << ts << ": " << ct[ts].elapsed() << "ms " << msg << endl;
+    else {
+        ct[ts] = QElapsedTimer();
+        ct[ts].start();
+    }
 }
 
 int main(int argc, char *argv[])
 {
+    string config_str = exec("lsc -e 'console.log JSON.stringify(require(\\./config))'");
+    json config_json = json::parse(config_str);
+    timeEvaluate = config_json["timeEvaluate"].as<bool>();
     /*
      * http://stackoverflow.com/questions/17979185/qt-5-1-qapplication-without-display-qxcbconnection-could-not-connect-to-displ
      * if not going to use gui, add -platform offscreen command line option
@@ -50,10 +66,8 @@ int main(int argc, char *argv[])
          * */
         string line;
         int ts=0;
-        tictoc();
         while (getline(cin, line)) {
             bool async = false;
-            tictoc("wait cmd");
             cmd.clear();
             res.clear();
             cmd = json::parse(line);
@@ -65,6 +79,7 @@ int main(int argc, char *argv[])
                 if (cmd.has_member("data") && cmd["data"].has_member("ts")) {
                     res["data"].set("ts", cmd["data"]["ts"]);
                     ts = cmd["data"]["ts"].as<int>();
+                    tictoc(ts);
                 }
                 ctl.res_header = res;
                 if (cmdstr == "exit") {
@@ -102,7 +117,6 @@ int main(int argc, char *argv[])
                 cout.flush();
                 output_lock.unlock();
             }
-            tictoc("calc cmd");
         }
     } else {
         MyWindow w;

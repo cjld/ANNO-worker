@@ -10,6 +10,7 @@
 #define LOCAL_EXPAND 5
 #define PROP_MULTIPLY 32
 #define EDGE_POW 1.1
+void tictoc(int ts, string msg);
 
 Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
@@ -389,8 +390,10 @@ MultilevelController::MultilevelController(): QObject(),  fgGMM(FG_COMPONENTS), 
                 lock_guard<mutex> lg(selection_lock);
                 updateSeed();
             }
-            if (output_lock)
+            if (output_lock) {
+                tictoc(res_header["data"]["ts"].as<int>(), "graphcut");
                 printContours(res_header);
+            }
         }
     });
 }
