@@ -96,10 +96,10 @@ int main(int argc, char *argv[])
                     res["data"].set("return", ctl.load_url(url));
                 } else
                 if (cmdstr == "paint") {
-                    json data = ctl.paint(cmd["data"])["contours"];
+                    json data = ctl.paint(cmd["data"]);
                     if (data.has_member("async") && data["async"] == true)
                         async = true;
-                    res["data"].set("contours", data);
+                    //res["data"].set("contours", data);
                 } else
                 if (cmdstr == "load-region") {
                     json data = ctl.load_region(cmd["data"]);
@@ -109,12 +109,13 @@ int main(int argc, char *argv[])
                     res["error"] = string("command '")+cmdstr+("' not found");
                 }
                 //cerr << cmdstr << ' ' << res.to_string() <<  endl;
-            } catch (...) {
+            } catch (const exception &e) {
                 res["status"] = "error";
-                res["error"] = "fatal error occur";
+                res["error"] = (string("Error occur: ") + e.what()).c_str();
+                cerr << res["error"] << endl;
             }
             //cerr << res.to_string().size() << ' ' << ts <<  endl;
-            if (!async) {
+            if (!async || res["status"] == "error") {
                 output_lock.lock();
                 cout << res << endl;
                 cout.flush();
