@@ -24,7 +24,7 @@ std::string exec(const char* cmd) {
     return result;
 }
 
-bool timeEvaluate;
+bool timeEvaluate = true;
 
 void tictoc(int ts, string msg="") {
     if (!timeEvaluate) return;
@@ -40,9 +40,11 @@ void tictoc(int ts, string msg="") {
 
 int main(int argc, char *argv[])
 {
+#if QT_NO_DEBUG
     string config_str = exec("lsc -e 'console.log JSON.stringify(require(\\./config))'");
     json config_json = json::parse(config_str);
     timeEvaluate = config_json["timeEvaluate"].as<bool>();
+#endif
     /*
      * http://stackoverflow.com/questions/17979185/qt-5-1-qapplication-without-display-qxcbconnection-could-not-connect-to-displ
      * if not going to use gui, add -platform offscreen command line option

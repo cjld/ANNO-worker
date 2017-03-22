@@ -38,17 +38,21 @@ class Multilevel
 public:
     int min_size, minx, miny, maxx, maxy;
     int th, th_low, th_high; // 25 means 25%
+    int next_minx, next_maxx;
+    int next_miny, next_maxy;
 
     Multilevel();
     void set_image(MyImage img);
     void set_selection(MyImage selection);
-    MyImage update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double max_prop, vector<pair<int, int> > &bseeds);
+    void update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double max_prop, vector<pair<int, int> > &bseeds);
     // 3*3 avg down sample
     MyImage down_sample(MyImage &img);
     // low is the mask, high is the origin image
     // Joint Bilateral Upsampling (JBU) [Kopf et al. 2007]
     MyImage up_sample(MyImage &low, MyImage &high);
+    void up_sample_fast(MyImage &low, MyImage &high, MyImage &store);
     static void dilute(MyImage &low, int size);
+    void dilute_fast(MyImage &low, int size);
     vector<MyImage> imgs;
     vector<MyImage> selections;
     void test();
