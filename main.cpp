@@ -29,9 +29,10 @@ bool timeEvaluate;
 void tictoc(int ts, string msg="") {
     if (!timeEvaluate) return;
     static map<int, QElapsedTimer> ct;
-    if (ct.find(ts) != ct.end())
+    if (ct.find(ts) != ct.end()) {
         cerr << ts << ": " << ct[ts].elapsed() << "ms " << msg << endl;
-    else {
+        ct.erase(ts);
+    } else {
         ct[ts] = QElapsedTimer();
         ct[ts].start();
     }

@@ -61,11 +61,15 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
     int dy[] = {0,1,0,-1};
     MyImage trimap;
 
+    minx = 0, maxx = imgs[imgs.size()-1].w;
+    miny = 0, maxy = imgs[imgs.size()-1].h;
     for (int i=imgs.size()-1; i>=0; i--) {
-        qDebug() << "build graph";
+        tictoc(-(i*5+5)-0, "build graph");
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
+        //minx = 0, maxx = imgs[i].w;
+        //miny = 0, maxy = imgs[i].h;
         if (i == (int)imgs.size()-1)
             trimap.resize(img.w, img.h, 128);
         int pow3 = (int)pow(3, i);
@@ -78,21 +82,21 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
         int n = img.w*img.h;
         Graph<double,double,double> g(n, n*4);
         g.add_node(n);
-        for (int y=0; y<img.h; y++)
-            for (int x=0; x<img.w; x++) {
+        for (int y=miny; y<maxy; y++)
+            for (int x=minx; x<maxx; x++) {
                 int lowc = trimap.get(x,y)&255;
                 if (lowc>=th_low && lowc<=th_high) {
                     trimap.get(x,y) |= 1<<8;
                     for (int d=0; d<4; d++) {
                         int xx = dx[d]+x;
                         int yy = dy[d]+y;
-                        if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
+                        if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
                         trimap.get(xx,yy) |= 1<<8;
                     }
                 }
             }
-        for (int y=0; y<img.h; y++)
-            for (int x=0; x<img.w; x++) {
+        for (int y=miny; y<maxy; y++)
+            for (int x=minx; x<maxx; x++) {
                 int lowc = trimap.get(x,y)&255;
                 if (!(trimap.get(x,y) >> 8)) continue;
 
@@ -116,7 +120,7 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                 for (int d=0; d<2; d++) {
                     int xx = dx[d]+x;
                     int yy = dy[d]+y;
-                    if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
+                    if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
                     int id2 = xx+yy*img.w;
                     int c2 = img.get(xx,yy);
                     double dis = colorDis(c1,c2);
@@ -127,19 +131,25 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                     g.add_edge(id1, id2, dis, dis);
                 }
             }
-        qDebug() << "calc maxflow" << i;
+        tictoc(-(i*5+5)-0, "build graph");
+        tictoc(-(i*5+5)-1, "maxflow");
         double flow = g.maxflow();
-        qDebug() << "maxflow" << i << flow;
+        tictoc(-(i*5+5)-1, "maxflow");
+        tictoc(-(i*5+5)-2, "upsampleing");
         for (int y=0; y<img.h; y++)
             for (int x=0; x<img.w; x++) {
+                if (x<minx || x>=maxx || y<miny || y>=maxy) {
+                    trimap.get(x,y) = sel.get(x,y)&255;
+                    continue;
+                }
                 int id1 = x+y*img.w;
                 // 4 byte, abcd, c means is not passed, d means pre trimap
                 int lowd = trimap.get(x,y)&255;
                 if (!(trimap.get(x,y) >> 8)) {
                     if (lowd < th_low)
-                        trimap.get(x,y) = lowd << 8;
+                        trimap.get(x,y) = 0;
                     else
-                        trimap.get(x,y) = (lowd << 8) | 255;
+                        trimap.get(x,y) = 255;
                     continue;
                 }
                 trimap.get(x,y) = lowd<<8;
@@ -147,13 +157,39 @@ MyImage Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, dou
                     trimap.get(x,y) |= 255;
                 }
             }
+        int next_minx = 1<<30, next_maxx = 0;
+        int next_miny = 1<<30, next_maxy = 0;
+        if (i == imgs.size()-1) {
+            for (int y=miny; y<maxy; y++)
+                for (int x=minx; x<maxx; x++) {
+                    bool is_fg = (sel.get(x,y)&255)>127;
+                    bool is_bg = ((sel.get(x,y)>>8)&255)>127;
+                    bool is_seed = seedimg.get(x,y)&1;
+                    if (is_seed || ((trimap.get(x,y) & 255) && !is_fg && !is_bg)) {
+                        next_minx = min(next_minx, x);
+                        next_miny = min(next_miny, y);
+                        next_maxx = max(next_maxx, x);
+                        next_maxy = max(next_maxy, y);
+                    }
+                }
+        } else {
+            next_minx = minx;
+            next_maxx = maxx;
+            next_miny = miny;
+            next_maxy = maxy;
+        }
         if (i) {
-            qDebug() << "up sampling";
+            minx = max(0,(next_minx-2)*3);
+            maxx = min(imgs[i-1].w, (next_maxx+2)*3);
+            miny = max(0,(next_miny-2)*3);
+            maxy = min(imgs[i-1].h, (next_maxy+2)*3);
             // 4 byte, abcd, c means pre trimap, d means graphcut result
             trimap = up_sample(trimap, imgs[i-1]);
+
         } else {
             for (auto &x : trimap.buffer) x &= 255;
         }
+        tictoc(-(i*5+5)-2, "upsampleing");
     }
     return trimap;
 }
@@ -233,8 +269,6 @@ void Multilevel::dilute(MyImage &low, int size) {
 }
 
 MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
-
-    int cc1 = 0, cc2 = 0, cc3 = 0, cc4 = 0;
     MyImage img(high.w, high.h);
     dilute(low, 2);
 
@@ -251,8 +285,6 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
             float g = ((c>>8)&255)/255.;
             float b = ((c)&255)/255.;
 
-            bool pass = false;
-            cc1++;
             /*
             int pre_color = (low.get(lowx,lowy) >> 8) & 255;
             if (pre_color < th_low || pre_color > th_high) {
@@ -264,11 +296,8 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
             int tc = low.get(lowx, lowy) >> 16;
             if (tc == 1 || tc == 2) {
                 img.get(x,y) = low.get(lowx,lowy)&255;
-                cc3++;
-                if (pass) cc4++;
-                pass = true;
+                continue;
             }
-            if (pass) continue;
 
             for (int dy=-2;dy<=2;dy++)
                 for (int dx=-2;dx<=2;dx++) {
@@ -319,7 +348,6 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
                     ib;
         }
     }
-    qDebug() << cc2*1./cc1 << cc3*1./cc1 << cc4*1./cc1 << cc1;
     return img;
 }
 
@@ -388,7 +416,9 @@ MultilevelController::MultilevelController(): QObject(),  fgGMM(FG_COMPONENTS), 
             lk.unlock();
             {
                 lock_guard<mutex> lg(selection_lock);
+                tictoc(-1, "updateSeed");
                 updateSeed();
+                tictoc(-1, "updateSeed");
             }
             if (output_lock) {
                 tictoc(res_header["data"]["ts"].as<int>(), "graphcut");
@@ -514,6 +544,7 @@ void MultilevelController::draw(QPoint s, QPoint t) {
 
 
 void MultilevelController::seedMultiGraphcut() {
+    tictoc(-2,"build gmm1");
     int dx[4] = {0,1,0,-1};
     int dy[4] = {1,0,-1,0};
     vector< pair<int,int> > &seed = seed_copy;
@@ -556,32 +587,26 @@ void MultilevelController::seedMultiGraphcut() {
         vecWeight.push_back(1.0/seed.size());
         Seeds.push_back(color2vec(image.get(x,y)));
     }
+    tictoc(-2,"build gmm1");
+    tictoc(-2,"build gmm2");
 
     Mat matWeightFg(1, Seeds.size(), CV_64FC1, &vecWeight[0]);
     Mat SeedSamples(1, Seeds.size(), CV_64FC3, &Seeds[0]);
     fgGMM.BuildGMMs(SeedSamples, compli, matWeightFg);
     fgGMM.RefineGMMs(SeedSamples, compli, matWeightFg);
-
-
-    int d = 100;
-    int imax = xmax+d, imin = xmin-d;
-    int jmax = ymax+d, jmin = ymin-d;
-    imax = min(selection.w, imax);
-    jmax = min(selection.h, jmax);
-    imin = max(imin, 0);
-    jmin = max(jmin, 0);
-
+    tictoc(-2,"build gmm2");
+    tictoc(-2,"build gmm3");
 
     double max_prop = 0;
 
-    for (int j=jmin; j<jmax; j++)
-        for (int i=imin; i<imax; i++) {
-            int c1 = image.get(i,j);
-            double fProp = fgGMM.P(color2vec(c1));
-            max_prop = max(fProp, max_prop);
-        }
-    Multilevel mt;
-    mt.set_image(image);
+    for (auto &xy : seed) {
+        int c1 = image.get(xy.first, xy.second);
+        double fProp = fgGMM.P(color2vec(c1));
+        max_prop = max(fProp, max_prop);
+    }
+
+    tictoc(-2, "build gmm3");
+    tictoc(-3, "build multilevel");
     if (is_delete) {
         MyImage selection_reverse = selection;
         for (auto &c : selection_reverse.buffer) c ^= color;
@@ -592,6 +617,8 @@ void MultilevelController::seedMultiGraphcut() {
     for (auto &kv : stroke_pixels)
         if (stroke_isbg[kv.first] ^ is_delete)
             bseeds.insert(bseeds.end(), kv.second.begin(), kv.second.end());
+    tictoc(-3, "build multilevel");
+    tictoc(-4, "update seed");
     MyImage trimap = mt.update_seed(seed, fgGMM, max_prop, bseeds);
     for (int y=0; y<trimap.h; y++)
         for (int x=0; x<trimap.w; x++)
@@ -601,6 +628,7 @@ void MultilevelController::seedMultiGraphcut() {
                 else
                     selection.get(x,y) |= color;
             }
+    tictoc(-4, "update seed");
     emit selection_changed();
 }
 
@@ -612,6 +640,7 @@ void MultilevelController::setImage(QImage img) {
     image.resize(img.width(), img.height());
     memcpy(&image.buffer[0], img.bits(), 4*img.width()*img.height());
     seed.clear();
+    mt.set_image(image);
 }
 
 void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {

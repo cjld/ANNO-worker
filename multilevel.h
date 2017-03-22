@@ -36,7 +36,7 @@ void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours);
 class Multilevel
 {
 public:
-    int min_size;
+    int min_size, minx, miny, maxx, maxy;
     int th, th_low, th_high; // 25 means 25%
 
     Multilevel();
@@ -87,6 +87,7 @@ public:
     vector< pair<int,int> > seed, contWour, seed_copy;
     double cdis, stroke_len, k;
     CmGMM3D fgGMM,bgGMM;
+    Multilevel mt;
     int xmin,xmax,ymin,ymax, brush_size;
     int is_delete;
 
