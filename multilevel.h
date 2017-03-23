@@ -78,6 +78,7 @@ public:
     void new_stroke();
 
     json load_url(string);
+    json load_base64(string);
     json paint(json);
     json load_region(json);
 

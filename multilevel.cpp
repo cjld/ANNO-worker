@@ -868,6 +868,19 @@ json MultilevelController::load_url(string url) {
     return res;
 }
 
+json MultilevelController::load_base64(string data) {
+    QByteArray bts = QByteArray::fromBase64(data.c_str(), QByteArray::Base64Encoding);
+    QImage image;
+    image.loadFromData(bts);
+
+    qDebug() << image.size();
+    if (image.size().width() == 0) throw "image-load-failed";
+    setImage(image);
+    json res;
+    res.set("regCount", this->image.buffer.size());
+    return res;
+}
+
 json MultilevelController::paint(json data) {
     int size = data["size"].as<int>();
     // to config

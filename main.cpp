@@ -95,6 +95,11 @@ int main(int argc, char *argv[])
                     res["data"].set("url", url);
                     res["data"].set("return", ctl.load_url(url));
                 } else
+                if (cmdstr == "open-base64") {
+                    string data = cmd["data"].as<string>();
+                    //res["data"].set("url", url);
+                    res["data"].set("return", ctl.load_base64(data));
+                } else
                 if (cmdstr == "paint") {
                     json data = ctl.paint(cmd["data"]);
                     if (data.has_member("async") && data["async"] == true)
