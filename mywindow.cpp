@@ -100,7 +100,7 @@ MyWindow::MyWindow(QWidget *parent) :
     //findContourTest();
     //diluteTest();
     ctl.new_stroke();
-    ctl.draw(QPoint(100,100), QPoint(100,101));
+    ctl.draw(QPoint(300,100), QPoint(500,300));
 }
 
 

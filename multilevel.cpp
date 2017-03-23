@@ -68,7 +68,7 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
-//#define OPT
+#define OPT
 #ifdef OPT
 #define OPTS "OPT"
         minx = 0, maxx = imgs[i].w;
