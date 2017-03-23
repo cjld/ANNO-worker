@@ -10,6 +10,7 @@
 #define LOCAL_EXPAND 5
 #define PROP_MULTIPLY 32
 #define EDGE_POW 1.1
+#define EDGE_MULTIPLY 60.0f
 void tictoc(int ts, string msg);
 
 Vec3d color2vec(unsigned int a) {
@@ -67,10 +68,14 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
-
-        //minx = 0, maxx = imgs[i].w;
-        //miny = 0, maxy = imgs[i].h;
-
+//#define OPT
+#ifdef OPT
+#define OPTS "OPT"
+        minx = 0, maxx = imgs[i].w;
+        miny = 0, maxy = imgs[i].h;
+#else
+#define OPTS ""
+#endif
         int pow3 = (int)pow(3, i);
         for (auto x : seeds) {
             seedimg.get(x.first/pow3, x.second/pow3) = 1;
@@ -81,25 +86,32 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         int n = img.w*img.h;
         Graph<double,double,double> g(n, n*4);
         g.add_node(n);
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
-                sel.get(x,y) |= 128<<16;
-            }
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
+        seedimg.dump(OPTS"seedimg", i);
+        img.dump(OPTS"img", i);
+        sel.dump(OPTS"sel", i);
+        cerr << minx << ' ' << maxx << ' ' << miny << ' ' << maxy << endl;
+        int off = 1;
+        if (i == imgs.size()-1)
+            for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+                for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
+                    sel.get(x,y) |= 128<<16;
+                }
+        for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+            for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
                 int lowc = (sel.get(x,y)>>16)&255;
                 if (lowc>=th_low && lowc<=th_high) {
                     sel.get(x,y) |= 1<<24;
                     for (int d=0; d<4; d++) {
                         int xx = dx[d]+x;
                         int yy = dy[d]+y;
-                        if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
+                        if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
                         sel.get(xx,yy) |= 1<<24;
                     }
                 }
             }
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
+        int dseed = 0;
+        for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+            for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
                 int lowc = (sel.get(x,y)>>16)&255;
                 //if (i == imgs.size()-1) lowc = 128;
                 if (!(sel.get(x,y) >> 24)) continue;
@@ -109,9 +121,16 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                 double fProp = fgGMM.P(color2vec(c1));
                 fProp = -log(fProp / max_prop) * PROP_MULTIPLY * pow3 * pow3; //27
                 bool is_seed = false;
+                if (i==1 && x==30 && y==29) {
+                    cerr << "bt " << seedimg.get(x,y) << ' ' << lowc << ' ' << th_high << endl;
+                }
                 if ((seedimg.get(x,y)&1) || lowc > th_high) {
                     g.add_tweights(id1, DBL_MAX, 0);
                     is_seed = true;
+                    if (i == 1) {
+                        cerr << x << ' ' << y << endl;
+                    }
+                    dseed++;
                 }
                 bool is_fg = (sel.get(x,y)&255)>127;
                 bool is_bg = ((sel.get(x,y)>>8)&255)>127;
@@ -124,23 +143,25 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                 for (int d=0; d<2; d++) {
                     int xx = dx[d]+x;
                     int yy = dy[d]+y;
-                    if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
+                    if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
                     int id2 = xx+yy*img.w;
                     int c2 = img.get(xx,yy);
                     double dis = colorDis(c1,c2);
                     //dis = exp(-dis/(255*255))*this->k*300;
-                    dis = 1 / (pow(dis/255./255., EDGE_POW)+0.001) * 60 * pow3;// * pow(this->k/30.0,3);
+                    dis = 1 / (pow(dis/255./255., EDGE_POW)+0.001) * EDGE_MULTIPLY * pow3;// * pow(this->k/30.0,3);
                     //dis=0;
                     // TODO: normalize it
                     g.add_edge(id1, id2, dis, dis);
                 }
             }
+        cerr << "seed number "  << dseed << endl;
         tictoc(-(i*5+5)-0, "build graph");
         tictoc(-(i*5+5)-1, "maxflow");
         double flow = g.maxflow();
         cerr << "maxflow " << flow << endl;
         tictoc(-(i*5+5)-1, "maxflow");
         tictoc(-(i*5+5)-2, "upsampleing");
+        int tt = 0;
         for (int y=miny; y<maxy; y++)
             for (int x=minx; x<maxx; x++) {
                 int id1 = x+y*img.w;
@@ -151,14 +172,18 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                 if (ispass) {
                     if (lowd < th_low)
                         {}
-                    else
+                    else {
                         sel.get(x,y) |= 255<<16;
+                        tt++;
+                    }
                     continue;
                 }
                 if (g.what_segment(id1) == Graph<double,double,double>::SOURCE) {
                     sel.get(x,y) |= 255<<16;
+                    tt++;
                 }
             }
+        cerr << tt << endl;
         next_minx = 1<<30, next_maxx = 0;
         next_miny = 1<<30, next_maxy = 0;
         if (i == imgs.size()-1) {
@@ -174,6 +199,16 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                         next_maxy = max(next_maxy, y);
                     }
                 }
+            next_maxx++;
+            next_maxy++;
+
+#ifdef OPT
+            next_minx = minx;
+            next_maxx = maxx;
+            next_miny = miny;
+            next_maxy = maxy;
+#endif
+
         } else {
             next_minx = minx;
             next_maxx = maxx;
@@ -181,10 +216,11 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             next_maxy = maxy;
         }
         if (i) {
-            minx = max(0,(next_minx-2));
-            maxx = min(img.w, (next_maxx+2));
-            miny = max(0,(next_miny-2));
-            maxy = min(img.h, (next_maxy+2));
+            int dd = 2;
+            minx = max(0,(next_minx-dd));
+            maxx = min(img.w, (next_maxx+dd));
+            miny = max(0,(next_miny-dd));
+            maxy = min(img.h, (next_maxy+dd));
 
             next_minx = max(0,minx*3);
             next_maxx = min(imgs[i-1].w, maxx*3);
@@ -196,6 +232,7 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             //next_miny = 0, next_maxy = imgs[i-1].h;
 
             // 4 byte, abcd, c means pre trimap, d means graphcut result
+            sel.dump(OPTS"sele", i);
             up_sample_fast(sel, imgs[i-1], selections[i-1]);
 
             minx = next_minx;
@@ -287,6 +324,7 @@ void Multilevel::dilute(MyImage &low, int size) {
 
 
 void Multilevel::dilute_fast(MyImage &low, int size) {
+    // bit 0(is 0) bit 1(is 1)
     for (int y=miny; y<maxy; y++) {
         for (int x=minx; x<maxx; x++) {
             auto &c1 = low.get(x,y);
@@ -357,16 +395,20 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
             */
             int tc = low.get(lowx, lowy) >> 24;
             if (tc == 1 || tc == 2) {
-                store.get(x,y) = low.get(lowx,lowy)&((1<<24)-1);
+                store.get(x,y) = low.get(lowx,lowy)&(255<<16) | (store.get(x,y) & ((1<<16)-1));
                 continue;
             }
 
             for (int dy=-2;dy<=2;dy++)
                 for (int dx=-2;dx<=2;dx++) {
-                    int lowyy = min(maxy-1, max(miny, dy+lowy));
-                    int lowxx = min(maxx-1, max(minx, dx+lowx));
-                    int highyy = min(next_maxy-1, max(next_miny, lowyy*3+1));
-                    int highxx = min(next_maxx-1, max(next_minx, lowxx*3+1));
+                    //int lowyy = min(maxy-1, max(miny, dy+lowy));
+                    //int lowxx = min(maxx-1, max(minx, dx+lowx));
+                    //int highyy = min(next_maxy-1, max(next_miny, lowyy*3+1));
+                    //int highxx = min(next_maxx-1, max(next_minx, lowxx*3+1));
+                    int lowyy = min(low.h-1, max(0, dy+lowy));
+                    int lowxx = min(low.w-1, max(0, dx+lowx));
+                    int highyy = min(high.h-1, max(0, lowyy*3+1));
+                    int highxx = min(high.w-1, max(0, lowxx*3+1));
 
                     unsigned int highc = high.get(highxx, highyy);
                     float rr = ((highc>>16)&255)/255.;
@@ -374,7 +416,7 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
                     float bb = ((highc)&255)/255.;
 
                     unsigned int lowc = low.get(lowxx, lowyy);
-                    float lbb = ((lowc)&255)/255.;
+                    float lbb = ((lowc>>16)&255)/255.;
                     float cdis = sqr(bb-b);
                     cdis += sqr(rr-r)+sqr(gg-g);
                     float rdis = sqr(lowxf-lowxx) + sqr(lowyf-lowyy);
@@ -387,6 +429,15 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
                 }
             bs /= k;
             int ib = min(255,max(0,(int)round(bs*255)));
+            /*
+            if (tc == 1 || tc == 2) {
+                if (ib != (store.get(x,y)>>16)) {
+                    cerr << "impossible " << ib << ' ' << (store.get(x,y)>>16) << ' '
+                         << ((store.get(x,y)>>8)&255) << ' '
+                         << ((store.get(x,y))&255) << ' ' << tc << endl;
+                }
+            }
+            */
             store.get(x,y) = (ib<<16)|(store.get(x,y)&((1<<16)-1));
         }
     }
@@ -662,6 +713,10 @@ void MultilevelController::draw(QPoint s, QPoint t) {
     xmax += brush_size * LOCAL_EXPAND;
     ymin -= brush_size * LOCAL_EXPAND;
     ymax += brush_size * LOCAL_EXPAND;
+    xmin = max(xmin, 0);
+    ymin = max(ymin, 0);
+    xmax = min(selection.w, xmax);
+    ymax = min(selection.h, ymax);
     seed_cv.notify_one();
     //updateSeed();
 }
@@ -673,7 +728,7 @@ void MultilevelController::seedMultiGraphcut() {
     int dy[4] = {1,0,-1,0};
     vector< pair<int,int> > &seed = seed_copy;
     if (seed.size() == 0) return;
-    int color = 0x500000ff;
+    int color = 0x000000ff;
     fgGMM.Reset();
     vector<double> vecWeight;
     vector<Vec3d> Seeds;

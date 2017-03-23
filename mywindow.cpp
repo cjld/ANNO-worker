@@ -98,7 +98,9 @@ MyWindow::MyWindow(QWidget *parent) :
     prev_pos = QPoint(0,0);
     is_shift_press = false;
     //findContourTest();
-    diluteTest();
+    //diluteTest();
+    ctl.new_stroke();
+    ctl.draw(QPoint(100,100), QPoint(100,101));
 }
 
 
@@ -139,7 +141,10 @@ void MyWindow::paintEvent(QPaintEvent *e) {
     painter.drawImage(0,offset,mask);
     {
         //lock_guard<mutex> lock(ctl.selection_lock);
-        QImage qselection((uchar *)&ctl.selection.get(), ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
+        auto v = ctl.selection.buffer;
+        for (auto &x : v)
+            if (x) x |= 0x80000000;
+        QImage qselection((uchar *)&v[0], ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
         painter.drawImage(0,offset,qselection);
     }
 /*
