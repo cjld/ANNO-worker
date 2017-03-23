@@ -27,7 +27,8 @@ SOURCES += main.cpp\
     ./GMM/CmFile.cpp \
     mywindow.cpp \
     form.cpp \
-    multilevel.cpp
+    multilevel.cpp \
+    config.cpp
 
 HEADERS  += \
     ./GMM/CmCv.h \
@@ -62,7 +63,8 @@ HEADERS  += \
     jsoncons/parse_error_handler.hpp \
     mywindow.h \
     form.h \
-    multilevel.h
+    multilevel.h \
+    config.h
 
 LIBS += -L/usr/local/lib/ -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_imgcodecs
 
