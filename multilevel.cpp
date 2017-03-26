@@ -5,19 +5,21 @@
 #include <QtNetwork/QtNetwork>
 #include <QPainter>
 
-#define FG_COMPONENTS 4
+#define FG_COMPONENTS 1
 #define BG_COMPONENTS 8
 #define LOCAL_EXPAND 5
-#define PROP_MULTIPLY 32
+#define PROP_MULTIPLY 10 //32
 #define EDGE_POW 1.1
-#define EDGE_MULTIPLY 60.0f
+#define EDGE_MULTIPLY 60.0
+#define COLOR_DIV 255.0f
+#define EDGE_TH 5
 void tictoc(int ts, string msg);
 
 Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
     int a2 = (a & 0x00ff00) >> 8;
     int a3 = a & 0x0000ff;
-    return Vec3d(a1,a2,a3);
+    return Vec3d(a1,a2,a3) / COLOR_DIV;
 }
 
 double colorDis(unsigned int a, unsigned int b) {
@@ -34,7 +36,7 @@ double colorDis(unsigned int a, unsigned int b) {
 Multilevel::Multilevel()
 {
     min_size = 200;
-    th = 5;
+    th = EDGE_TH;
     th_low = 255*th/100;
     th_high = 255-th_low;
 }

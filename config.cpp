@@ -1,3 +1,3 @@
 #include "config.h"
 
-bool Config::timeEvaluate = false;
+bool Config::timeEvaluate = true;
