@@ -12,6 +12,9 @@
 // #include <opencv/highgui.h>
 // #include <stdlib.h>
 #include <random>
+#include <stdint.h>
+#include <functional>
+
 
 using namespace std;
 using namespace cv;
@@ -59,7 +62,7 @@ typedef const vecM CVecM;
 typedef const vecS CVecS;
 
 typedef bool BOOL;
-typedef unsigned int DWORD;
+typedef unsigned long DWORD;
 typedef int WORD;
 
 extern mt19937 randEng;

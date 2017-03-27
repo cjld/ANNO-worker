@@ -41,6 +41,7 @@ HEADERS  += \
     ./graphCut/adjacency_list/block.h \
     ./graphCut/adjacency_list/graph.h \
     ./graphCut/block.h \
+	./graphCut/instances.inc \
     ./graphCut/graph.h \
     ./GMM/CmFile.h \
     jsoncons/json.hpp \
@@ -64,11 +65,19 @@ HEADERS  += \
     form.h \
     multilevel.h
 
-LIBS += -L/usr/local/lib/ -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_imgcodecs
-
 FORMS    += \
     mywindow.ui \
     form.ui
-QMAKE_CXXFLAGS += -std=c++14 -g
-QMAKE_CXX = g++-5
+QMAKE_CXXFLAGS += -std=c++14
+linux-g++ {
+	QMAKE_CXX = g++-5
+	LIBS += -L/usr/local/lib/ -lopencv_stitching -lopencv_objdetect -lopencv_superres -lopencv_videostab -lopencv_calib3d -lopencv_features2d -lopencv_highgui -lopencv_video -lopencv_photo -lopencv_ml -lopencv_imgproc -lopencv_flann -lopencv_core -lopencv_imgcodecs
+
+}
+
+win32 {
+	LIBS += -LE:\cv\opencv\build\x64\vc12\lib -lopencv_core2411 -lopencv_imgproc2411 -lopencv_highgui2411
+	INCLUDEPATH += E:\cv\opencv\build\include
+}
+
 #CONFIG += console debug
