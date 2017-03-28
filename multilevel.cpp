@@ -6,18 +6,21 @@
 #include <QtNetwork/QtNetwork>
 #include <QPainter>
 
-#define FG_COMPONENTS 4
+#define FG_COMPONENTS 1
 #define BG_COMPONENTS 8
 #define LOCAL_EXPAND 5
-#define PROP_MULTIPLY 32
+#define PROP_MULTIPLY 10 //32
 #define EDGE_POW 1.1
+#define EDGE_MULTIPLY 60.0
+#define COLOR_DIV 255.0f
+#define EDGE_TH 5
 void tictoc(int ts, string msg);
 
 Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
     int a2 = (a & 0x00ff00) >> 8;
     int a3 = a & 0x0000ff;
-    return Vec3d(a1,a2,a3);
+    return Vec3d(a1,a2,a3) / COLOR_DIV;
 }
 
 double colorDis(unsigned int a, unsigned int b) {
@@ -34,7 +37,7 @@ double colorDis(unsigned int a, unsigned int b) {
 Multilevel::Multilevel()
 {
     min_size = 200;
-    th = 5;
+    th = EDGE_TH;
     th_low = 255*th/100;
     th_high = 255-th_low;
 }
@@ -68,10 +71,6 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
-
-        //minx = 0, maxx = imgs[i].w;
-        //miny = 0, maxy = imgs[i].h;
-
         int pow3 = (int)pow(3, i);
         for (auto x : seeds) {
             seedimg.get(x.first/pow3, x.second/pow3) = 1;
@@ -82,27 +81,28 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         int n = img.w*img.h;
         Graph<double,double,double> g(n, n*4);
         g.add_node(n);
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
-                sel.get(x,y) |= 128<<16;
-            }
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
+        int off = 1;
+        if (i == imgs.size()-1)
+            for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+                for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
+                    sel.get(x,y) |= 128<<16;
+                }
+        for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+            for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
                 int lowc = (sel.get(x,y)>>16)&255;
                 if (lowc>=th_low && lowc<=th_high) {
                     sel.get(x,y) |= 1<<24;
                     for (int d=0; d<4; d++) {
                         int xx = dx[d]+x;
                         int yy = dy[d]+y;
-                        if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
+                        if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
                         sel.get(xx,yy) |= 1<<24;
                     }
                 }
             }
-        for (int y=miny; y<maxy; y++)
-            for (int x=minx; x<maxx; x++) {
+        for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)
+            for (int x=max(minx-off,0); x<min(maxx+off,img.w); x++) {
                 int lowc = (sel.get(x,y)>>16)&255;
-                //if (i == imgs.size()-1) lowc = 128;
                 if (!(sel.get(x,y) >> 24)) continue;
 
                 int id1 = x+y*img.w;
@@ -125,12 +125,12 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                 for (int d=0; d<2; d++) {
                     int xx = dx[d]+x;
                     int yy = dy[d]+y;
-                    if (xx<minx || xx>=maxx || yy<miny || yy>=maxy) continue;
+                    if (xx<0 || xx>=img.w || yy<0 || yy>=img.h) continue;
                     int id2 = xx+yy*img.w;
                     int c2 = img.get(xx,yy);
                     double dis = colorDis(c1,c2);
                     //dis = exp(-dis/(255*255))*this->k*300;
-                    dis = 1 / (pow(dis/255./255., EDGE_POW)+0.001) * 60 * pow3;// * pow(this->k/30.0,3);
+                    dis = 1 / (pow(dis/255./255., EDGE_POW)+0.001) * EDGE_MULTIPLY * pow3;// * pow(this->k/30.0,3);
                     //dis=0;
                     // TODO: normalize it
                     g.add_edge(id1, id2, dis, dis);
@@ -152,8 +152,9 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                 if (ispass) {
                     if (lowd < th_low)
                         {}
-                    else
+                    else {
                         sel.get(x,y) |= 255<<16;
+                    }
                     continue;
                 }
                 if (g.what_segment(id1) == Graph<double,double,double>::SOURCE) {
@@ -175,6 +176,8 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
                         next_maxy = max(next_maxy, y);
                     }
                 }
+            next_maxx++;
+            next_maxy++;
         } else {
             next_minx = minx;
             next_maxx = maxx;
@@ -182,19 +185,16 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             next_maxy = maxy;
         }
         if (i) {
-            minx = max(0,(next_minx-2));
-            maxx = min(img.w, (next_maxx+2));
-            miny = max(0,(next_miny-2));
-            maxy = min(img.h, (next_maxy+2));
+            int dd = 2;
+            minx = max(0,(next_minx-dd));
+            maxx = min(img.w, (next_maxx+dd));
+            miny = max(0,(next_miny-dd));
+            maxy = min(img.h, (next_maxy+dd));
 
             next_minx = max(0,minx*3);
             next_maxx = min(imgs[i-1].w, maxx*3);
             next_miny = max(0, miny*3);
             next_maxy = min(imgs[i-1].h, maxy*3);
-
-
-            //next_minx = 0, next_maxx = imgs[i-1].w;
-            //next_miny = 0, next_maxy = imgs[i-1].h;
 
             // 4 byte, abcd, c means pre trimap, d means graphcut result
             up_sample_fast(sel, imgs[i-1], selections[i-1]);
@@ -288,6 +288,7 @@ void Multilevel::dilute(MyImage &low, int size) {
 
 
 void Multilevel::dilute_fast(MyImage &low, int size) {
+    // bit 0(is 0) bit 1(is 1)
     for (int y=miny; y<maxy; y++) {
         for (int x=minx; x<maxx; x++) {
             auto &c1 = low.get(x,y);
@@ -358,16 +359,20 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
             */
             int tc = low.get(lowx, lowy) >> 24;
             if (tc == 1 || tc == 2) {
-                store.get(x,y) = low.get(lowx,lowy)&((1<<24)-1);
+                store.get(x,y) = low.get(lowx,lowy)&(255<<16) | (store.get(x,y) & ((1<<16)-1));
                 continue;
             }
 
             for (int dy=-2;dy<=2;dy++)
                 for (int dx=-2;dx<=2;dx++) {
-                    int lowyy = min(maxy-1, max(miny, dy+lowy));
-                    int lowxx = min(maxx-1, max(minx, dx+lowx));
-                    int highyy = min(next_maxy-1, max(next_miny, lowyy*3+1));
-                    int highxx = min(next_maxx-1, max(next_minx, lowxx*3+1));
+                    //int lowyy = min(maxy-1, max(miny, dy+lowy));
+                    //int lowxx = min(maxx-1, max(minx, dx+lowx));
+                    //int highyy = min(next_maxy-1, max(next_miny, lowyy*3+1));
+                    //int highxx = min(next_maxx-1, max(next_minx, lowxx*3+1));
+                    int lowyy = min(low.h-1, max(0, dy+lowy));
+                    int lowxx = min(low.w-1, max(0, dx+lowx));
+                    int highyy = min(high.h-1, max(0, lowyy*3+1));
+                    int highxx = min(high.w-1, max(0, lowxx*3+1));
 
                     unsigned int highc = high.get(highxx, highyy);
                     float rr = ((highc>>16)&255)/255.;
@@ -375,7 +380,7 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
                     float bb = ((highc)&255)/255.;
 
                     unsigned int lowc = low.get(lowxx, lowyy);
-                    float lbb = ((lowc)&255)/255.;
+                    float lbb = ((lowc>>16)&255)/255.;
                     float cdis = sqr(bb-b);
                     cdis += sqr(rr-r)+sqr(gg-g);
                     float rdis = sqr(lowxf-lowxx) + sqr(lowyf-lowyy);
@@ -388,6 +393,15 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
                 }
             bs /= k;
             int ib = min(255,max(0,(int)round(bs*255)));
+            /*
+            if (tc == 1 || tc == 2) {
+                if (ib != (store.get(x,y)>>16)) {
+                    cerr << "impossible " << ib << ' ' << (store.get(x,y)>>16) << ' '
+                         << ((store.get(x,y)>>8)&255) << ' '
+                         << ((store.get(x,y))&255) << ' ' << tc << endl;
+                }
+            }
+            */
             store.get(x,y) = (ib<<16)|(store.get(x,y)&((1<<16)-1));
         }
     }
@@ -410,14 +424,6 @@ MyImage Multilevel::up_sample(MyImage &low, MyImage &high) {
             float g = ((c>>8)&255)/255.;
             float b = ((c)&255)/255.;
 
-            /*
-            int pre_color = (low.get(lowx,lowy) >> 8) & 255;
-            if (pre_color < th_low || pre_color > th_high) {
-                img.get(x,y) = pre_color;
-                cc2++;
-                pass = true;
-            }
-            */
             int tc = low.get(lowx, lowy) >> 16;
             if (tc == 1 || tc == 2) {
                 img.get(x,y) = low.get(lowx,lowy)&255;
@@ -663,6 +669,10 @@ void MultilevelController::draw(QPoint s, QPoint t) {
     xmax += brush_size * LOCAL_EXPAND;
     ymin -= brush_size * LOCAL_EXPAND;
     ymax += brush_size * LOCAL_EXPAND;
+    xmin = max(xmin, 0);
+    ymin = max(ymin, 0);
+    xmax = min(selection.w, xmax);
+    ymax = min(selection.h, ymax);
     seed_cv.notify_one();
     //updateSeed();
 }
@@ -674,7 +684,7 @@ void MultilevelController::seedMultiGraphcut() {
     int dy[4] = {1,0,-1,0};
     vector< pair<int,int> > &seed = seed_copy;
     if (seed.size() == 0) return;
-    int color = 0x500000ff;
+    int color = 0x000000ff;
     fgGMM.Reset();
     vector<double> vecWeight;
     vector<Vec3d> Seeds;
@@ -860,6 +870,19 @@ json MultilevelController::load_url(string url) {
     image.loadFromData(bts);
 
     delete reply;
+
+    qDebug() << image.size();
+    if (image.size().width() == 0) throw "image-load-failed";
+    setImage(image);
+    json res;
+    res.set("regCount", this->image.buffer.size());
+    return res;
+}
+
+json MultilevelController::load_base64(string data) {
+    QByteArray bts = QByteArray::fromBase64(data.c_str(), QByteArray::Base64Encoding);
+    QImage image;
+    image.loadFromData(bts);
 
     qDebug() << image.size();
     if (image.size().width() == 0) throw "image-load-failed";

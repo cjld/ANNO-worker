@@ -32,6 +32,15 @@ public:
         return buffer[i+j*w];
     }
     unsigned int getlastb(int i=0, int j=0) {return buffer[i+j*w]&255;}
+    void dump(string fname, int id) {
+        fname = fname + (char)('0' + id);
+        cerr << "dump " << fname << endl;
+        ofstream fout(fname);
+        fout<< w << ' ' << h << endl;
+        for (auto &x : buffer)
+            for (int i=0; i<4;i++)
+                fout << ((x>>(i*8))&255) << ' ';
+    }
 };
 
 Vec3d color2vec(unsigned int a);
@@ -83,6 +92,7 @@ public:
     void new_stroke();
 
     json load_url(string);
+    json load_base64(string);
     json paint(json);
     json load_region(json);
 

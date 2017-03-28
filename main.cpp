@@ -2,6 +2,7 @@
 #include <QApplication>
 // json library from https://github.com/danielaparker/jsoncons
 #include "jsoncons/json.hpp"
+#include "config.h"
 #include <iostream>
 #include <ctime>
 #include <QElapsedTimer>
@@ -26,10 +27,8 @@ std::string exec(const char* cmd) {
 }
 */
 
-bool timeEvaluate = true;
-
 void tictoc(int ts, string msg="") {
-    if (!timeEvaluate) return;
+    if (!Config::timeEvaluate) return;
     static map<int, QElapsedTimer> ct;
     if (ct.find(ts) != ct.end()) {
         cerr << ts << ": " << ct[ts].elapsed() << "ms " << msg << endl;
@@ -42,13 +41,6 @@ void tictoc(int ts, string msg="") {
 
 int main(int argc, char *argv[])
 {
-	/*
-#if QT_NO_DEBUG
-    string config_str = exec("lsc -e 'console.log JSON.stringify(require(\\./config))'");
-    json config_json = json::parse(config_str);
-    timeEvaluate = config_json["timeEvaluate"].as<bool>();
-#endif
-*/
     /*
      * http://stackoverflow.com/questions/17979185/qt-5-1-qapplication-without-display-qxcbconnection-could-not-connect-to-displ
      * if not going to use gui, add -platform offscreen command line option
@@ -98,6 +90,17 @@ int main(int argc, char *argv[])
                     string url = cmd["data"]["url"].as<string>();
                     res["data"].set("url", url);
                     res["data"].set("return", ctl.load_url(url));
+                } else
+                if (cmdstr == "open-base64") {
+                    string data = cmd["data"].as<string>();
+                    //res["data"].set("url", url);
+                    res["data"].set("return", ctl.load_base64(data));
+                } else
+                if (cmdstr == "config") {
+                    json data = cmd["data"];
+                    Config::load(data);
+                    //res["data"].set("url", url);
+                    //res["data"].set("return", ctl.load_base64(data));
                 } else
                 if (cmdstr == "paint") {
                     json data = ctl.paint(cmd["data"]);

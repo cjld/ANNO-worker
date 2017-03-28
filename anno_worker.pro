@@ -27,7 +27,8 @@ SOURCES += main.cpp\
     ./GMM/CmFile.cpp \
     mywindow.cpp \
     form.cpp \
-    multilevel.cpp
+    multilevel.cpp \
+    config.cpp
 
 HEADERS  += \
     ./GMM/CmCv.h \
@@ -63,7 +64,8 @@ HEADERS  += \
     jsoncons/parse_error_handler.hpp \
     mywindow.h \
     form.h \
-    multilevel.h
+    multilevel.h \
+    config.h
 
 FORMS    += \
     mywindow.ui \

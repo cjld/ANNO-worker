@@ -94,11 +94,15 @@ MyWindow::MyWindow(QWidget *parent) :
 
     connect(&ctl, SIGNAL(selection_changed()), this, SLOT(on_selection_changed()));
     //on_actionOpen_file_triggered();
-    open("/home/cjld/Pictures/1405918-mountain_2.jpg");
+    open("/home/cjld/Pictures/_Cardinal_7_6072_60749_6074943118_6074943118.jpg");
     prev_pos = QPoint(0,0);
     is_shift_press = false;
     //findContourTest();
-    diluteTest();
+    //diluteTest();
+    ctl.new_stroke();
+    ctl.brush_size = 40;
+    ctl.draw(QPoint(200,200), QPoint(700,700));
+    ctl.draw(QPoint(1300,600), QPoint(800,600));
 }
 
 
@@ -130,18 +134,28 @@ void MyWindow::on_selection_changed() {
 }
 
 void MyWindow::paintEvent(QPaintEvent *e) {
-    QPainter painter(this);
+    QImage image(ctl.image.w, ctl.image.h, QImage::Format_ARGB32_Premultiplied);
+    image.fill(qRgba(0,0,0,0));
+    QPainter painter;
+    painter.begin(&image);
 
     offset = 30;
     QImage qimage((uchar *)&ctl.image.get(), ctl.image.w, ctl.image.h, QImage::Format_RGB32);
-    painter.drawImage(0,offset,qimage);
+    painter.drawImage(0,0,qimage);
     QImage mask((uchar *)&ctl.draw_mask.get(), ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
-    painter.drawImage(0,offset,mask);
+    painter.drawImage(0,0,mask);
     {
         //lock_guard<mutex> lock(ctl.selection_lock);
-        QImage qselection((uchar *)&ctl.selection.get(), ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
-        painter.drawImage(0,offset,qselection);
+        auto v = ctl.selection.buffer;
+        for (auto &x : v)
+            if (x) x |= 0x80000000;
+        QImage qselection((uchar *)&v[0], ctl.draw_mask.w, ctl.draw_mask.h, QImage::Format_ARGB32);
+        painter.drawImage(0,0,qselection);
     }
+    painter.end();
+    image.save("b_p10_c1_cd255_.png");
+    QPainter wpt(this);
+    wpt.drawImage(0,offset,image);
 /*
     QPainterPathStroker st;
     st.setWidth(10);
