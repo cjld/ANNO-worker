@@ -1,3 +1,4 @@
 #include "config.h"
 
-bool Config::timeEvaluate = false;
+bool Config::timeEvaluate = true;
+bool Config::recordCommand = false;

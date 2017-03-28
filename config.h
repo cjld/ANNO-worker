@@ -9,7 +9,7 @@ using jsoncons::json;
 
 class Config {
 public:
-    static bool timeEvaluate;
+    static bool timeEvaluate, recordCommand;
     static void load(jsoncons::json json) {
         if (json.has_member("timeEvaluate")) {
             timeEvaluate = json["timeEvaluate"].as<bool>();

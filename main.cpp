@@ -13,20 +13,6 @@ using jsoncons::json;
 #include "multilevel.h"
 #include <array>
 
-/*
-std::string exec(const char* cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) throw std::runtime_error("popen() failed!");
-    while (!feof(pipe.get())) {
-        if (fgets(buffer.data(), 128, pipe.get()) != NULL)
-            result += buffer.data();
-    }
-    return result;
-}
-*/
-
 void tictoc(int ts, string msg="") {
     if (!Config::timeEvaluate) return;
     static map<int, QElapsedTimer> ct;
@@ -46,11 +32,15 @@ int main(int argc, char *argv[])
      * if not going to use gui, add -platform offscreen command line option
      * */
     QApplication a(argc, argv);
+    ofstream *fout = 0;
     std::mutex output_lock;
+    if (Config::recordCommand)
+        fout = new ofstream("cmds.json");
+    //ifstream cin("cmds.json");
     if (argc >= 2 && string(argv[1])=="server") {
         MultilevelController ctl;
         ctl.output_lock = &output_lock;
-        ios_base::sync_with_stdio(false);
+        //ios_base::sync_with_stdio(false);
         json cmd;
         /* command json contain
          * cmd: command str
@@ -66,6 +56,8 @@ int main(int argc, char *argv[])
         string line;
         int ts=0;
         while (getline(cin, line)) {
+            if (fout)
+                (*fout) << line << endl;
             bool async = false;
             cmd.clear();
             res.clear();
@@ -129,6 +121,7 @@ int main(int argc, char *argv[])
                 output_lock.unlock();
             }
         }
+        ctl.worker->join();
     } else {
         MyWindow w;
         w.show();

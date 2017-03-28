@@ -56,7 +56,6 @@ void Multilevel::set_selection(MyImage selection) {
     while ((int)selections[selections.size()-1].buffer.size() > sqr(min_size)) {
         selections.push_back(down_sample(selections[selections.size()-1]));
     }
-
 }
 
 
