@@ -11,8 +11,9 @@ using jsoncons::json;
 
 #include <QtNetwork/QtNetwork>
 #include "multilevel.h"
+#include <array>
 
-
+/*
 std::string exec(const char* cmd) {
     std::array<char, 128> buffer;
     std::string result;
@@ -24,6 +25,7 @@ std::string exec(const char* cmd) {
     }
     return result;
 }
+*/
 
 void tictoc(int ts, string msg="") {
     if (!Config::timeEvaluate) return;

@@ -1,7 +1,7 @@
 #include "form.h"
 #include "ui_form.h"
 #include <QPainter>
-#include <mywindow.h>
+#include "mywindow.h"
 #include <QDebug>
 
 Form::Form(QWidget *parent) :

@@ -1,5 +1,6 @@
 #include "multilevel.h"
-#include "graphCut/graph.h"
+#include "graphCut/graph.cpp"
+#include "graphCut/maxflow.cpp"
 #include <iostream>
 #include <QDebug>
 #include <QtNetwork/QtNetwork>
