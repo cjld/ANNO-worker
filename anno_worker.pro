@@ -79,8 +79,8 @@ linux {
 }
 
 win32 {
-	LIBS += -LE:\cv\opencv\build\x64\vc12\lib -lopencv_core2411 -lopencv_imgproc2411 -lopencv_highgui2411
-	INCLUDEPATH += E:\cv\opencv\build\include
+        LIBS += -LD:\OpenCV2.4\opencv\build\x64\vc12\lib -lopencv_core2410 -lopencv_imgproc2410 -lopencv_highgui2410
+        INCLUDEPATH += D:\OpenCV2.4\opencv\build\include
 }
 
 #CONFIG += console debug

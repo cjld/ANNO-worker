@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QPoint>
 #include <QImage>
+#include <QDebug>
 #include "jsoncons/json.hpp"
 using jsoncons::json;
 
@@ -25,7 +26,11 @@ public:
         for (int i=0; i<buffer.size(); i++)
             buffer[i] = fill;
     }
-    unsigned int &get(int i=0, int j=0) {return buffer[i+j*w];}
+    unsigned int &get(int i=0, int j=0) {
+        //if (i+j*w>=buffer.size() || i+j*w<0)
+        //    qDebug() << "out of range";
+        return buffer[i+j*w];
+    }
     unsigned int getlastb(int i=0, int j=0) {return buffer[i+j*w]&255;}
     void dump(string fname, int id) {
         fname = fname + (char)('0' + id);
