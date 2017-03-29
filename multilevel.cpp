@@ -7,7 +7,7 @@
 #include <QtNetwork/QtNetwork>
 #include <QPainter>
 
-#define FG_COMPONENTS 4
+#define FG_COMPONENTS 8
 #define BG_COMPONENTS 8
 #define LOCAL_EXPAND 5
 #define PROP_MULTIPLY 10 //32
@@ -20,14 +20,17 @@ void tictoc(int ts, string msg);
 MyImage MyImage::background;
 
 
-void MyImage::dump_image(string fname, int id, int channel) {
+void MyImage::dump_image(string fname, int id, int channel, bool composite) {
     if (!Config::dumpImage) return;
     fname = fname + (char)('0' + id) + "_c_" + (char)('0' + channel);
     cerr << "dump image " << fname << endl;
     auto v = buffer;
     for (auto &x : v) {
         x = ((x >> (channel*8)) & 255)>>1;
-        x = 255 | (x << 24);
+        if (!composite)
+            x = (255 << 24) | x;
+        else
+            x = 255 | (x << 24);
     }
     QImage img((uchar *)&v[0], w, h, QImage::Format_ARGB32);
     img = img.scaled(background.w,background.h);
@@ -50,7 +53,7 @@ Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
     int a2 = (a & 0x00ff00) >> 8;
     int a3 = a & 0x0000ff;
-    return Vec3d(a1,a2,a3) / COLOR_DIV;
+    return Vec3d(a3,a2,a1) / COLOR_DIV;
 }
 
 double colorDis(unsigned int a, unsigned int b) {
@@ -89,13 +92,13 @@ void Multilevel::set_selection(MyImage selection) {
 }
 
 
-void dump_gmm(MyImage &image, CmGMM3D &fgGMM, double max_prop, string fname, int id) {
+void dump_gmm(MyImage image, CmGMM3D &fgGMM, double max_prop, string fname, int id) {
     if (!Config::dumpImage) return;
     for (auto &x : image.buffer) {
         double fProp = fgGMM.P(color2vec(x));
-        x = (fProp / max_prop)*255.0;
+        x = min((fProp / max_prop)*255.0, 255.0);
     }
-    image.dump_image(fname, id, 0);
+    image.dump_image(fname, id, 0, false);
 }
 
 void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double max_prop, vector<pair<int,int>> &bseeds) {
@@ -109,7 +112,8 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
-        dump_gmm(img, fgGMM, max_prop, "gmm4", i);
+        if (Config::dumpImage)
+            dump_gmm(img, fgGMM, max_prop, "gmmdmp", FG_COMPONENTS);
         int pow3 = (int)pow(3, i);
         for (auto x : seeds) {
             seedimg.get(x.first/pow3, x.second/pow3) = 1;
@@ -737,6 +741,13 @@ void MultilevelController::draw(QPoint s, QPoint t) {
     //updateSeed();
 }
 
+void printGMM(CmGMM3D &gmm) {
+    for (int i=0; i<gmm.K(); i++) {
+        auto g = gmm.GetGaussians()[i];
+        cerr << "mean: " << gmm.getMean(i) << " weight: " << gmm.getWeight(i) <<
+                " w: " << g.w << " det: " << g.det << endl;
+    }
+}
 
 void MultilevelController::seedMultiGraphcut() {
     tictoc(-2,"build gmm1");
@@ -749,6 +760,49 @@ void MultilevelController::seedMultiGraphcut() {
     vector<double> vecWeight;
     vector<Vec3d> Seeds;
     Mat compli;
+
+    for (int i=0; i<(int)seed.size(); i++) {
+        int x = seed[i].first;
+        int y = seed[i].second;
+        if (is_delete)
+            // clean last byte
+            selection.get(x,y) &= ~color;
+        else
+            selection.get(x,y) |= color;
+        vecWeight.push_back(1.0/seed.size());
+        Seeds.push_back(color2vec(image.get(x,y)));
+    }
+    tictoc(-2,"build gmm1");
+    tictoc(-2,"build gmm2");
+
+    Mat matWeightFg(1, Seeds.size(), CV_64FC1, &vecWeight[0]);
+    Mat SeedSamples(1, Seeds.size(), CV_64FC3, &Seeds[0]);
+    fgGMM.BuildGMMs(SeedSamples, compli, matWeightFg);
+    fgGMM.RefineGMMs(SeedSamples, compli, matWeightFg);
+    if (Config::dumpImage) {
+        CmGMM3D::View(fgGMM, "fgGMM");
+        printGMM(fgGMM);
+    }
+    tictoc(-2,"build gmm2");
+    tictoc(-2,"build gmm3");
+
+    double max_prop = 0;
+    pair<int,int> max_xy;
+
+    for (auto &xy : seed) {
+        int c1 = image.get(xy.first, xy.second);
+        double fProp = fgGMM.P(color2vec(c1));
+        max_prop = max(fProp, max_prop);
+        if (fProp == max_prop) max_xy = xy;
+    }
+
+    if (Config::dumpImage) {
+        cerr << "maxprop " << max_prop << " max_xy" << max_xy.first << ' ' << max_xy.second <<  endl;
+        cerr << "seed: " << seed[0].first << " " << seed[0].second << " color: " <<
+                          color2vec(image.get(seed[0].first, seed[0].second)) << " P: " <<
+                fgGMM.P(color2vec(image.get(seed[0].first, seed[0].second))) << endl;
+    }
+    max_prop = 1;
 
 #define check_selection(selection, x, y) (bool)(selection.get(x,y)&color) == (bool)is_delete
 
@@ -769,35 +823,6 @@ void MultilevelController::seedMultiGraphcut() {
             if (is_edge)
                 seed.push_back({x,y});
         }
-    }
-
-    for (int i=0; i<(int)seed.size(); i++) {
-        int x = seed[i].first;
-        int y = seed[i].second;
-        if (is_delete)
-            // clean last byte
-            selection.get(x,y) &= ~color;
-        else
-            selection.get(x,y) |= color;
-        vecWeight.push_back(1.0/seed.size());
-        Seeds.push_back(color2vec(image.get(x,y)));
-    }
-    tictoc(-2,"build gmm1");
-    tictoc(-2,"build gmm2");
-
-    Mat matWeightFg(1, Seeds.size(), CV_64FC1, &vecWeight[0]);
-    Mat SeedSamples(1, Seeds.size(), CV_64FC3, &Seeds[0]);
-    fgGMM.BuildGMMs(SeedSamples, compli, matWeightFg);
-    fgGMM.RefineGMMs(SeedSamples, compli, matWeightFg);
-    tictoc(-2,"build gmm2");
-    tictoc(-2,"build gmm3");
-
-    double max_prop = 0;
-
-    for (auto &xy : seed) {
-        int c1 = image.get(xy.first, xy.second);
-        double fProp = fgGMM.P(color2vec(c1));
-        max_prop = max(fProp, max_prop);
     }
 
     tictoc(-2, "build gmm3");
@@ -837,7 +862,8 @@ void MultilevelController::setImage(QImage img) {
     memcpy(&image.buffer[0], img.bits(), 4*img.width()*img.height());
     seed.clear();
     mt.set_image(image);
-    MyImage::set_dump_img(image);
+    if (Config::dumpImage)
+        MyImage::set_dump_img(image);
 }
 
 void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {

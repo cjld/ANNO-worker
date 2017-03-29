@@ -81,6 +81,33 @@ void diluteTest() {
     Multilevel::print(img2);
 }
 
+void GMM_Test() {
+    CmGMM3D gmm(2);
+    vector<double> vecWeight;
+    vector<Vec3d> Seeds = {Vec3d(0,0,0), Vec3d(1,1,1), Vec3d(1,1,0.9)};
+    Mat compli;
+    for (int i=0; i<(int)Seeds.size(); i++) {
+        vecWeight.push_back(1.0/Seeds.size());
+        //Seeds.push_back(color2vec(image.get(x,y)));
+    }
+    Mat matWeightFg(1, Seeds.size(), CV_64FC1, &vecWeight[0]);
+    Mat SeedSamples(1, Seeds.size(), CV_64FC3, &Seeds[0]);
+    gmm.BuildGMMs(SeedSamples, compli, matWeightFg);
+    gmm.RefineGMMs(SeedSamples, compli, matWeightFg);
+    for (int i=0; i<gmm.K(); i++) {
+        auto g = gmm.GetGaussians()[i];
+        cerr << "mean: " << gmm.getMean(i) << " weight: " << gmm.getWeight(i) <<
+                " w: " << g.w << " det: " << g.det << endl;
+    }
+    vector<Vec3d> pt = {Vec3d(0.5,0.5,0.5), Vec3d(1,1,0.85)};
+    for (auto p : Seeds) pt.push_back(p);
+    for (auto p : pt) {
+        cerr << "test: " << p << " P: " << gmm.P(p) << endl;
+    }
+    CmGMM3D::View(gmm, "gmm");
+    //exit(0);
+}
+
 MyWindow::MyWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MyWindow)
@@ -95,13 +122,17 @@ MyWindow::MyWindow(QWidget *parent) :
     connect(&ctl, SIGNAL(selection_changed()), this, SLOT(on_selection_changed()));
     //on_actionOpen_file_triggered();
     open("/home/cjld/Pictures/_Cardinal_7_6072_60749_6074943118_6074943118.jpg");
+    //open("/home/cjld/Pictures/maxresdefault.jpg");
     prev_pos = QPoint(0,0);
     is_shift_press = false;
     //findContourTest();
     //diluteTest();
+    //GMM_Test();
+    //return;
     ctl.new_stroke();
     ctl.brush_size = 40;
     ctl.draw(QPoint(200,200), QPoint(700,700));
+    //ctl.draw(QPoint(149,230), QPoint(150,260));
     ctl.draw(QPoint(1300,600), QPoint(800,600));
 }
 
@@ -153,7 +184,7 @@ void MyWindow::paintEvent(QPaintEvent *e) {
         painter.drawImage(0,0,qselection);
     }
     painter.end();
-    image.save("c_d2.png");
+    image.save("gmmcmp8.png");
     QPainter wpt(this);
     wpt.drawImage(0,offset,image);
 /*

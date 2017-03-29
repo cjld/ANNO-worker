@@ -44,7 +44,7 @@ public:
 
     static MyImage background;
     static void set_dump_img(MyImage &img);
-    void dump_image(string fname, int id, int channel);
+    void dump_image(string fname, int id, int channel, bool composite=true);
 };
 
 Vec3d color2vec(unsigned int a);
