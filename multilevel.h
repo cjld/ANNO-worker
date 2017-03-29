@@ -43,8 +43,7 @@ public:
     }
 
     static MyImage background;
-    static void set_dump_img(MyImage img) {background = img;}
-
+    static void set_dump_img(MyImage &img);
     void dump_image(string fname, int id, int channel);
 };
 

@@ -1,6 +1,7 @@
 #include "multilevel.h"
 #include "graphCut/graph.cpp"
 #include "graphCut/maxflow.cpp"
+#include "config.h"
 #include <iostream>
 #include <QDebug>
 #include <QtNetwork/QtNetwork>
@@ -20,6 +21,7 @@ MyImage MyImage::background;
 
 
 void MyImage::dump_image(string fname, int id, int channel) {
+    if (!Config::dumpImage) return;
     fname = fname + (char)('0' + id) + "_c_" + (char)('0' + channel);
     cerr << "dump image " << fname << endl;
     auto v = buffer;
@@ -37,6 +39,11 @@ void MyImage::dump_image(string fname, int id, int channel) {
     pt.drawImage(0,0,img);
     pt.end();
     s.save((fname+".png").c_str());
+}
+
+void MyImage::set_dump_img(MyImage &img) {
+    if (!Config::dumpImage) return;
+    background = img;
 }
 
 Vec3d color2vec(unsigned int a) {
