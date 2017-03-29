@@ -787,16 +787,16 @@ void MultilevelController::seedMultiGraphcut() {
     tictoc(-2,"build gmm3");
 
     double max_prop = 0;
-    pair<int,int> max_xy;
-
-    for (auto &xy : seed) {
-        int c1 = image.get(xy.first, xy.second);
-        double fProp = fgGMM.P(color2vec(c1));
-        max_prop = max(fProp, max_prop);
-        if (fProp == max_prop) max_xy = xy;
-    }
 
     if (Config::dumpImage) {
+        pair<int,int> max_xy;
+
+        for (auto &xy : seed) {
+            int c1 = image.get(xy.first, xy.second);
+            double fProp = fgGMM.P(color2vec(c1));
+            max_prop = max(fProp, max_prop);
+            if (fProp == max_prop) max_xy = xy;
+        }
         cerr << "maxprop " << max_prop << " max_xy" << max_xy.first << ' ' << max_xy.second <<  endl;
         cerr << "seed: " << seed[0].first << " " << seed[0].second << " color: " <<
                           color2vec(image.get(seed[0].first, seed[0].second)) << " P: " <<
