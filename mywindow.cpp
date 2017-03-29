@@ -153,7 +153,7 @@ void MyWindow::paintEvent(QPaintEvent *e) {
         painter.drawImage(0,0,qselection);
     }
     painter.end();
-    image.save("b_p10_c1_cd255_.png");
+    image.save("c_d2.png");
     QPainter wpt(this);
     wpt.drawImage(0,offset,image);
 /*

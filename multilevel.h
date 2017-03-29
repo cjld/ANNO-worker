@@ -41,6 +41,11 @@ public:
             for (int i=0; i<4;i++)
                 fout << ((x>>(i*8))&255) << ' ';
     }
+
+    static MyImage background;
+    static void set_dump_img(MyImage img) {background = img;}
+
+    void dump_image(string fname, int id, int channel);
 };
 
 Vec3d color2vec(unsigned int a);
@@ -65,6 +70,7 @@ public:
     // Joint Bilateral Upsampling (JBU) [Kopf et al. 2007]
     MyImage up_sample(MyImage &low, MyImage &high);
     void up_sample_fast(MyImage &low, MyImage &high, MyImage &store);
+    void up_sample_dilute(MyImage &low, MyImage &high, MyImage &store);
     static void dilute(MyImage &low, int size);
     void dilute_fast(MyImage &low, int size);
     vector<MyImage> imgs;

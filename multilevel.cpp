@@ -6,7 +6,7 @@
 #include <QtNetwork/QtNetwork>
 #include <QPainter>
 
-#define FG_COMPONENTS 1
+#define FG_COMPONENTS 4
 #define BG_COMPONENTS 8
 #define LOCAL_EXPAND 5
 #define PROP_MULTIPLY 10 //32
@@ -15,6 +15,29 @@
 #define COLOR_DIV 255.0f
 #define EDGE_TH 5
 void tictoc(int ts, string msg);
+
+MyImage MyImage::background;
+
+
+void MyImage::dump_image(string fname, int id, int channel) {
+    fname = fname + (char)('0' + id) + "_c_" + (char)('0' + channel);
+    cerr << "dump image " << fname << endl;
+    auto v = buffer;
+    for (auto &x : v) {
+        x = ((x >> (channel*8)) & 255)>>1;
+        x = 255 | (x << 24);
+    }
+    QImage img((uchar *)&v[0], w, h, QImage::Format_ARGB32);
+    img = img.scaled(background.w,background.h);
+    QImage img2((uchar *)&background.buffer[0], background.w,background.h, QImage::Format_RGB32);
+    QPainter pt;
+    QImage s( background.w,background.h,QImage::Format_RGB32);
+    pt.begin(&s);
+    pt.drawImage(0,0,img2);
+    pt.drawImage(0,0,img);
+    pt.end();
+    s.save((fname+".png").c_str());
+}
 
 Vec3d color2vec(unsigned int a) {
     int a1 = (a & 0xff0000) >> 16;
@@ -59,6 +82,14 @@ void Multilevel::set_selection(MyImage selection) {
 }
 
 
+void dump_gmm(MyImage image, CmGMM3D &fgGMM, double max_prop, string fname, int id) {
+    for (auto &x : image.buffer) {
+        double fProp = fgGMM.P(color2vec(x));
+        x = (fProp / max_prop)*255.0;
+    }
+    image.dump_image(fname, id, 0);
+}
+
 void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double max_prop, vector<pair<int,int>> &bseeds) {
     int dx[] = {1,0,-1,0};
     int dy[] = {0,1,0,-1};
@@ -70,6 +101,7 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
+        dump_gmm(img, fgGMM, max_prop, "gmm4", i);
         int pow3 = (int)pow(3, i);
         for (auto x : seeds) {
             seedimg.get(x.first/pow3, x.second/pow3) = 1;
@@ -183,6 +215,8 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             next_miny = miny;
             next_maxy = maxy;
         }
+        //sel.dump_image("dsel", i, 0);
+        //sel.dump_image("dsel", i, 2);
         if (i) {
             int dd = 2;
             minx = max(0,(next_minx-dd));
@@ -196,7 +230,9 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             next_maxy = min(imgs[i-1].h, maxy*3);
 
             // 4 byte, abcd, c means pre trimap, d means graphcut result
-            up_sample_fast(sel, imgs[i-1], selections[i-1]);
+            //up_sample_fast(sel, imgs[i-1], selections[i-1]);
+            up_sample_dilute(sel, imgs[i-1], selections[i-1]);
+            //selections[i-1].dump_image("dsele", i, 2);
 
             minx = next_minx;
             maxx = next_maxx;
@@ -382,6 +418,7 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
                     float lbb = ((lowc>>16)&255)/255.;
                     float cdis = sqr(bb-b);
                     cdis += sqr(rr-r)+sqr(gg-g);
+                    //cdis = 1;
                     float rdis = sqr(lowxf-lowxx) + sqr(lowyf-lowyy);
                     float normc = 0.1;
                     float normr = 0.5;
@@ -402,6 +439,22 @@ void Multilevel::up_sample_fast(MyImage &low, MyImage &high, MyImage &store) {
             }
             */
             store.get(x,y) = (ib<<16)|(store.get(x,y)&((1<<16)-1));
+        }
+    }
+}
+
+
+void Multilevel::up_sample_dilute(MyImage &low, MyImage &high, MyImage &store) {
+    dilute_fast(low, 1);
+
+    for (int y=next_miny; y<next_maxy; y++) {
+        for (int x=next_minx; x<next_maxx; x++) {
+            int lowx = x/3, lowy = y/3;
+            int tc = low.get(lowx, lowy) >> 24;
+            if (tc == 1 || tc == 2) {
+                store.get(x,y) = low.get(lowx,lowy)&(255<<16) | (store.get(x,y) & ((1<<16)-1));
+            } else
+                store.get(x,y) = (128<<16) | (store.get(x,y) & ((1<<16)-1));
         }
     }
 }
@@ -776,6 +829,7 @@ void MultilevelController::setImage(QImage img) {
     memcpy(&image.buffer[0], img.bits(), 4*img.width()*img.height());
     seed.clear();
     mt.set_image(image);
+    MyImage::set_dump_img(image);
 }
 
 void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
