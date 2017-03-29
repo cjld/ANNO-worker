@@ -112,7 +112,11 @@ int main(int argc, char *argv[])
                 res["status"] = "error";
                 res["error"] = (string("Error occur: ") + e.what()).c_str();
                 cerr << res["error"] << endl;
+            } catch (...) {
+                cerr << "Error cmd:" << endl;
+                cerr << line << endl;
             }
+
             //cerr << res.to_string().size() << ' ' << ts <<  endl;
             if (!async || res["status"] == "error") {
                 output_lock.lock();

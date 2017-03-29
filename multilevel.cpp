@@ -89,7 +89,8 @@ void Multilevel::set_selection(MyImage selection) {
 }
 
 
-void dump_gmm(MyImage image, CmGMM3D &fgGMM, double max_prop, string fname, int id) {
+void dump_gmm(MyImage &image, CmGMM3D &fgGMM, double max_prop, string fname, int id) {
+    if (!Config::dumpImage) return;
     for (auto &x : image.buffer) {
         double fProp = fgGMM.P(color2vec(x));
         x = (fProp / max_prop)*255.0;
