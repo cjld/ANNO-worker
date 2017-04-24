@@ -1,11 +1,10 @@
 #include "multilevel.h"
-#include "graphCut/graph.cpp"
-#include "graphCut/maxflow.cpp"
 #include "config.h"
 #include <iostream>
 #include <QDebug>
 #include <QtNetwork/QtNetwork>
 #include <QPainter>
+#include "mygraphcut.h"
 
 #define FG_COMPONENTS 8
 #define BG_COMPONENTS 8
@@ -122,10 +121,8 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         for (auto x : bseeds) {
             seedimg.get(x.first/pow3, x.second/pow3) |= 2;
         }
-        int n = img.w*img.h;
 
-        Graph<double,double,double> g(n, n*4);
-        g.add_node(n);
+        MyGraphCut g;
         int off = 1;
         if (i == imgs.size()-1)
             for (int y=max(miny-off,0); y<min(maxy+off,img.h); y++)

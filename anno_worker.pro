@@ -28,7 +28,8 @@ SOURCES += main.cpp\
     mywindow.cpp \
     form.cpp \
     multilevel.cpp \
-    config.cpp
+    config.cpp \
+    mygraphcut.cpp
 
 HEADERS  += \
     ./GMM/CmCv.h \
@@ -65,7 +66,8 @@ HEADERS  += \
     mywindow.h \
     form.h \
     multilevel.h \
-    config.h
+    config.h \
+    mygraphcut.h
 
 FORMS    += \
     mywindow.ui \
