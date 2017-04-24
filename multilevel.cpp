@@ -112,6 +112,7 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
         MyImage &img = imgs[i];
         MyImage &sel = selections[i];
         MyImage seedimg(img.w, img.h);
+        cerr << "level " << i << " [" << img.w << "," << img.h << "]" << endl;
         if (Config::dumpImage)
             dump_gmm(img, fgGMM, max_prop, "gmmdmp", FG_COMPONENTS);
         int pow3 = (int)pow(3, i);
@@ -122,6 +123,7 @@ void Multilevel::update_seed(vector<pair<int,int>> seeds, CmGMM3D &fgGMM, double
             seedimg.get(x.first/pow3, x.second/pow3) |= 2;
         }
         int n = img.w*img.h;
+
         Graph<double,double,double> g(n, n*4);
         g.add_node(n);
         int off = 1;
