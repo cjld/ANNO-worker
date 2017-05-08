@@ -771,6 +771,7 @@ void MultilevelController::seedMultiGraphcut() {
         vecWeight.push_back(1.0/seed.size());
         Seeds.push_back(color2vec(image.get(x,y)));
     }
+    cerr << "seed size " << seed.size() << " " << Seeds.size() << endl;
     tictoc(-2,"build gmm1");
     tictoc(-2,"build gmm2");
 

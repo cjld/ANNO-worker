@@ -16,6 +16,8 @@ void MyGraphCut::add_edge(int i, int j, double fa, double fb) {
 
 double MyGraphCut::maxflow() {
     cerr << "graphsize [" << imap.size() << ',' << q2.size() << "]" << endl;
+    if (imap.size() == 0)
+        return 0;
     g = new Graph<double,double,double>(imap.size(), q2.size());
     g->add_node(imap.size());
     for (auto v : q1)
