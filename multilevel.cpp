@@ -916,7 +916,7 @@ void MultilevelController::printContours(json header) {
         findContours(selection, contours, false);
 
         vector<EdgeSeg::value_type> buffer;
-        auto getEdgeSeg = [&](int x1, int y1, int x2, int y2) -> double {
+        auto getEdgeSeg = [&](int x1, int y1, int x2, int y2, Vec3d fg, Vec3d bg, bool is_edge) -> double {
             auto key = key_convert(x1, y1, x2, y2);
             double value;
             auto iter = bgEdgeSeg.find(key);
@@ -924,24 +924,59 @@ void MultilevelController::printContours(json header) {
                 iter = fgEdgeSeg.find(key);
                 if (iter == fgEdgeSeg.end()) {
                     //calc
-                    int dx1, dy1;
-                    int dx2 = std::get<0>(key);
-                    int dy2 = std::get<1>(key);
-                    if (std::get<2>(key) == 0) {
-                        dx1 = dx2-1;
-                        dy1 = dy2;
+                    int ix, iy, ox, oy;
+                    if (x1 == x2) {
+                        if (y1 < y2) {
+                            ix = x1-1, iy = y1;
+                            ox = x1, oy = y1;
+                        } else {
+                            ox = x2-1, oy = y2;
+                            ix = x2, iy = y2;
+                        }
                     } else {
-                        dx1 = dx2;
-                        dy1 = dy2-1;
+                        if (x1 < x2) {
+                            ix = x1, iy = y1;
+                            ox = x1, oy = y1-1;
+                        } else {
+                            ix = x1-1, iy = y1-1;
+                            ox = x1-1, oy = y1;
+                        }
                     }
-                    double p1 = fgGMM.P(color2vec(image.get(dx1, dy1)));
-                    double p2 = fgGMM.P(color2vec(image.get(dx2, dy2)));
-                    p1 = -log(p1);
-                    p2 = -log(p2);
-                    double gap = 0.5;
-                    double g1 = abs(p1-gap);
-                    double g2 = abs(p2-gap);
-                    value = g1/(g1+g2+1e-6);
+                    /*
+                    if (false) {
+                        double p1 = fgGMM.P(color2vec(image.get(dx1, dy1)));
+                        double p2 = fgGMM.P(color2vec(image.get(dx2, dy2)));
+                        p1 = log(p1);
+                        p2 = log(p2);
+                        //cerr << p1 << ' ' << p2 << endl;
+                        p1 = max(-1e5, min(1e5, p1));
+                        p2 = max(-1e5, min(1e5, p2));
+                        //double p1 = color2vec(image.get(dx1, dy1))[0];
+                        //double p2 = color2vec(image.get(dx2, dy2))[0];
+                        double gap = -200;
+                        double g1 = abs(p1-gap);
+                        double g2 = abs(p2-gap);
+                        value = g1/(g1+g2+1e-6);
+                    }
+                    */
+                    if (!is_edge) {
+                        Vec3d c1 = color2vec(image.get(ix, iy));
+                        Vec3d c2 = color2vec(image.get(ox, oy));
+                        Vec3d d = fg - bg;
+                        double dm = d.dot((fg+bg)/2);
+                        double d1 = d.dot(c1)-dm;
+                        double d2 = d.dot(c2)-dm;
+                        if (d1<0)
+                            value = 0;
+                        else if (d2>0)
+                            value = 1;
+                        else
+                            value = d1/(d1-d2+1e-6);
+                        if (ix > ox || iy > oy) value = 1-value;
+                        //cerr << d1 << "\t" << d2 << "\t" << dm << "\t" << value <<
+                        //        "\n\t" << d.dot(c1) << "\t" << d.dot(c2) <<
+                        //        "\n\t" << c1 << "\t" << c2 << "\t" << d << "\t" << fg << endl;
+                    } else value = 0.5;
                 } else value = iter->second;
             } else value = iter->second;
             buffer.push_back(make_pair(key,value));
@@ -955,12 +990,81 @@ void MultilevelController::printContours(json header) {
             if (contours[i].size()) {
                 pp = contours[i][contours[i].size()-1];
             }
+            vector<Vec3d> fgColor, fgSum, fgLocal;
+            vector<Vec3d> bgColor, bgSum, bgLocal;
+            vector<bool> is_edge;
+            for (int j=0; j<(int)contours[i].size(); j++) {
+                int x1 = pp.first, y1 = pp.second;
+                int x2 = contours[i][j].first, y2 = contours[i][j].second;
+                int ix, iy, ox, oy;
+                if (x1 == x2) {
+                    if (y1 < y2) {
+                        ix = x1-1, iy = y1;
+                        ox = x1, oy = y1;
+                    } else {
+                        ox = x2-1, oy = y2;
+                        ix = x2, iy = y2;
+                    }
+                } else {
+                    if (x1 < x2) {
+                        ix = x1, iy = y1;
+                        ox = x1, oy = y1-1;
+                    } else {
+                        ix = x1-1, iy = y1-1;
+                        ox = x1-1, oy = y1;
+                    }
+                }
+                Vec3d ic(0,0,0), oc(0,0,0);
+                //if (!selection.getlastb(ix, iy))
+                //    cerr << "ERROR ix, iy " << " " <<ix << " " << iy << " " <<
+                //            " x1,y1:" << x1 << ","<<y1 << " x2,y2:" << x2<< "," << y2 << endl;
+                if (j == 1) {
+                    cerr << "check " << ox << " " << oy << " " << ix << " " << iy << endl;
+                    cerr << x1 << "," << y1 << " " << x2 << "," << y2 << endl;
+                }
+                if (ox>=0 && ox<image.w && oy>=0 && oy<image.h) {
+                    is_edge.push_back(false);
+                    oc = color2vec(image.get(ox, oy));
+                    ic = color2vec(image.get(ix, iy));
+                    //if (selection.getlastb(ox, oy))
+                    //    cerr << "ERROR ox, oy " << " " <<ox << "," << oy << " " <<
+                    //            " x1,y1:" << x1 << ","<<y1 << " x2,y2:" << x2<< "," << y2 << endl;
+                } else
+                    is_edge.push_back(true);
+                fgColor.push_back(ic);
+                bgColor.push_back(oc);
+                if (fgSum.size()) {
+                    fgSum.push_back(*fgSum.rbegin() + ic);
+                    bgSum.push_back(*bgSum.rbegin() + oc);
+                } else {
+                    fgSum.push_back(ic);
+                    bgSum.push_back(oc);
+                }
+                pp = contours[i][j];
+            }
+            int local = min(5, (int)contours[i].size()/2-1);
+            for (int j=0; j<(int)contours[i].size(); j++) {
+                int l = j-local, r = j+local;
+                if (l<0) l+=contours[i].size();
+                if (r>=contours[i].size()) r-=contours[i].size();
+                Vec3d fgsum = fgSum[r] - fgSum[l];
+                Vec3d bgsum = bgSum[r] - bgSum[l];
+                if (r<=l) {
+                    fgsum = fgsum+fgSum[contours[i].size()-1];
+                    bgsum = bgsum+bgSum[contours[i].size()-1];
+                }
+                fgLocal.push_back(fgsum/local/2);
+                bgLocal.push_back(bgsum/local/2);
+            }
+            if (contours[i].size()) {
+                pp = contours[i][contours[i].size()-1];
+            }
             for (int j=0; j<(int)contours[i].size(); j++) {
                 json point;
                 pair<int,int> p = contours[i][j];
                 point["x"] = p.first;
                 point["y"] = p.second;
-                point["d"] = getEdgeSeg(pp.first, pp.second, p.first, p.second);
+                point["d"] = getEdgeSeg(pp.first, pp.second, p.first, p.second, fgLocal[j], bgLocal[j], is_edge[j]);
                 pp = p;
                 arr2.add(point);
             }
