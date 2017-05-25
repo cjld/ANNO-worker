@@ -866,7 +866,7 @@ void MultilevelController::setImage(QImage img) {
         MyImage::set_dump_img(image);
 }
 
-void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
+void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours, bool simplify) {
     int dx[] = {1,0,-1,0};
     int dy[] = {0,1,0,-1};
     int rdx[] = {0,-1,-1,0};
@@ -882,7 +882,7 @@ void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
                 vector<pair<int,int>> v;
                 while (!(d==0 && o.get(sx,sy))) {
                     if (!d) o.get(sx,sy) = 1;
-                    if (pred != d) {
+                    if (pred != d || !simplify) {
                         v.push_back(make_pair(sx,sy));
                         pred = d;
                     }
@@ -913,19 +913,62 @@ void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours) {
 void MultilevelController::printContours(json header) {
     if (is_changed) {
         vector<vector<pair<int,int>> > contours;
-        findContours(selection, contours);
+        findContours(selection, contours, false);
+
+        vector<EdgeSeg::value_type> buffer;
+        auto getEdgeSeg = [&](int x1, int y1, int x2, int y2) -> double {
+            auto key = key_convert(x1, y1, x2, y2);
+            double value;
+            auto iter = bgEdgeSeg.find(key);
+            if (iter == bgEdgeSeg.end()) {
+                iter = fgEdgeSeg.find(key);
+                if (iter == fgEdgeSeg.end()) {
+                    //calc
+                    int dx1, dy1;
+                    int dx2 = std::get<0>(key);
+                    int dy2 = std::get<1>(key);
+                    if (std::get<2>(key) == 0) {
+                        dx1 = dx2-1;
+                        dy1 = dy2;
+                    } else {
+                        dx1 = dx2;
+                        dy1 = dy2-1;
+                    }
+                    double p1 = fgGMM.P(color2vec(image.get(dx1, dy1)));
+                    double p2 = fgGMM.P(color2vec(image.get(dx2, dy2)));
+                    p1 = -log(p1);
+                    p2 = -log(p2);
+                    double gap = 0.5;
+                    double g1 = abs(p1-gap);
+                    double g2 = abs(p2-gap);
+                    value = g1/(g1+g2+1e-6);
+                } else value = iter->second;
+            } else value = iter->second;
+            buffer.push_back(make_pair(key,value));
+            return value;
+        };
 
         json arr1 = json::array();
         for (int i=0; i<(int)contours.size(); i++) {
             json arr2 = json::array();
+            pair<int,int> pp;
+            if (contours[i].size()) {
+                pp = contours[i][contours[i].size()-1];
+            }
             for (int j=0; j<(int)contours[i].size(); j++) {
                 json point;
-                point["x"] = contours[i][j].first;
-                point["y"] = contours[i][j].second;
+                pair<int,int> p = contours[i][j];
+                point["x"] = p.first;
+                point["y"] = p.second;
+                point["d"] = getEdgeSeg(pp.first, pp.second, p.first, p.second);
+                pp = p;
                 arr2.add(point);
             }
             arr1.add(arr2);
         }
+        fgEdgeSeg.clear();
+        for (auto kv : buffer)
+            fgEdgeSeg[kv.first] = kv.second;
         header["data"].set("contours", arr1);
         is_changed = false;
         output_lock->lock();
@@ -1010,6 +1053,8 @@ json MultilevelController::load_region(json data) {
     {
         lock_guard<mutex> lg2(seed_lock);
         seed.clear();
+        fgEdgeSeg.clear();
+        bgEdgeSeg.clear();
     }
     for (auto &kv : stroke_pixels)
         for (auto &xy : kv.second) {
@@ -1019,13 +1064,25 @@ json MultilevelController::load_region(json data) {
     stroke_pixels.clear();
     json contours_json = data["contours"];
     int segs=0;
-    auto draw_selection = [&](json contours_json, unsigned int color) {
+    auto draw_selection = [&](json contours_json, unsigned int color, EdgeSeg &edgeSeg) {
         vector< vector<Point> > contours;
         contours.resize(contours_json.size());
         for (int i=0; i<(int)contours.size(); i++) {
             json tmp = contours_json[i];
-            for (int j=0; j<(int)tmp.size(); j++)
-                contours[i].push_back(Point(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>()));
+            if (tmp.size() && tmp[0].has_member("d")) {
+                Point pp(tmp[tmp.size()-1]["x"].as<double>(), tmp[tmp.size()-1]["y"].as<double>());
+                for (int j=0; j<(int)tmp.size(); j++) {
+                    Point p(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>());
+                    contours[i].push_back(p);
+                    auto key = key_convert(pp.x, pp.y, p.x, p.y);
+                    pp = p;
+                    double value = tmp[j]["d"].as<double>();
+                    edgeSeg[key] = value;
+                }
+            } else {
+                for (int j=0; j<(int)tmp.size(); j++)
+                    contours[i].push_back(Point(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>()));
+            }
         }
         QPainterPath cutSelectPath = QPainterPath();
         for (int i = 0; i < (int)contours.size(); i++) {
@@ -1056,12 +1113,26 @@ json MultilevelController::load_region(json data) {
     for (int y=0; y<image.h; y++)
         for (int x=0; x<image.w; x++)
             selection.get(x,y) = 0;
-    draw_selection(contours_json, 255);
+    draw_selection(contours_json, 255, fgEdgeSeg);
     if (data.has_member("bgContours"))
-        draw_selection(data["bgContours"], 255<<8);
+        draw_selection(data["bgContours"], 255<<8, bgEdgeSeg);
     //pt.drawRect(0,0,100,100);
     //cutout->qStrokeMask.save("/tmp/check-region.png");
     json res = json::object();
     res.set("segCount", segs);
     return res;
+}
+
+EdgeSeg::key_type key_convert(int x1, int y1, int x2, int y2) {
+    if (x1 == x2) {
+        if (y1 < y2)
+            return make_tuple(x1,y1,0);
+        else
+            return make_tuple(x2,y2,0);
+    } else {
+        if (x1 < x2)
+            return make_tuple(x1,y1,1);
+        else
+            return make_tuple(x2,y2,1);
+    }
 }

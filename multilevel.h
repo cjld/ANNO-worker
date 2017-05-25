@@ -49,7 +49,7 @@ public:
 
 Vec3d color2vec(unsigned int a);
 double colorDis(unsigned int a, unsigned int b);
-void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours);
+void findContours(MyImage &image, vector<vector<pair<int,int>>> &contours, bool simplify=true);
 
 class Multilevel
 {
@@ -78,6 +78,7 @@ public:
     static void print(MyImage &a);
 };
 
+typedef map<tuple<int,int,int>, double> EdgeSeg;
 
 class MultilevelController : public QObject {
     Q_OBJECT
@@ -101,6 +102,7 @@ public:
     json paint(json);
     json load_region(json);
 
+    EdgeSeg fgEdgeSeg, bgEdgeSeg;
 
     MyImage draw_mask, image, selection;
     MyImage stroke_id;
@@ -125,5 +127,7 @@ public:
 signals:
     void selection_changed();
 };
+
+EdgeSeg::key_type key_convert(int x1, int y1, int x2, int y2);
 
 #endif // MULTILEVEL_H
