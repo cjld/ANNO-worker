@@ -861,6 +861,8 @@ void MultilevelController::setImage(QImage img) {
     image.resize(img.width(), img.height());
     memcpy(&image.buffer[0], img.bits(), 4*img.width()*img.height());
     seed.clear();
+    fgEdgeSeg.clear();
+    bgEdgeSeg.clear();
     mt.set_image(image);
     if (Config::dumpImage)
         MyImage::set_dump_img(image);
@@ -1067,8 +1069,9 @@ void MultilevelController::printContours(json header) {
             arr1.add(arr2);
         }
         fgEdgeSeg.clear();
-        for (auto kv : buffer)
-            fgEdgeSeg[kv.first] = kv.second;
+        // do not cache edge seg
+        //for (auto kv : buffer)
+        //    fgEdgeSeg[kv.first] = kv.second;
         header["data"].set("contours", arr1);
         is_changed = false;
         output_lock->lock();
