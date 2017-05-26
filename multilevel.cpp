@@ -1018,10 +1018,6 @@ void MultilevelController::printContours(json header) {
                 //if (!selection.getlastb(ix, iy))
                 //    cerr << "ERROR ix, iy " << " " <<ix << " " << iy << " " <<
                 //            " x1,y1:" << x1 << ","<<y1 << " x2,y2:" << x2<< "," << y2 << endl;
-                if (j == 1) {
-                    cerr << "check " << ox << " " << oy << " " << ix << " " << iy << endl;
-                    cerr << x1 << "," << y1 << " " << x2 << "," << y2 << endl;
-                }
                 if (ox>=0 && ox<image.w && oy>=0 && oy<image.h) {
                     is_edge.push_back(false);
                     oc = color2vec(image.get(ox, oy));
