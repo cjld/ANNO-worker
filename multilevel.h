@@ -101,6 +101,8 @@ public:
     json load_base64(string);
     json paint(json);
     json load_region(json);
+    json drawmask(json);
+    json loadmask(json);
 
     EdgeSeg fgEdgeSeg, bgEdgeSeg;
 

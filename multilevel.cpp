@@ -1151,6 +1151,77 @@ json MultilevelController::paint(json data) {
     return res;
 }
 
+json MultilevelController::drawmask(json data) {
+    json contours_json = data["from"]["marks"][0]["contours"];
+    vector< vector<Point> > contours;
+    contours.resize(contours_json.size());
+    for (int i=0; i<(int)contours.size(); i++) {
+        json tmp = contours_json[i];
+        if (tmp.size() && tmp[0].has_member("d")) {
+            Point pp(tmp[tmp.size()-1]["x"].as<double>(), tmp[tmp.size()-1]["y"].as<double>());
+            for (int j=0; j<(int)tmp.size(); j++) {
+                Point p(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>());
+                contours[i].push_back(p);
+            }
+        } else {
+            for (int j=0; j<(int)tmp.size(); j++)
+                contours[i].push_back(Point(tmp[j]["x"].as<double>(),tmp[j]["y"].as<double>()));
+        }
+    }
+    QPainterPath cutSelectPath = QPainterPath();
+    for (int i = 0; i < (int)contours.size(); i++) {
+        cutSelectPath.moveTo(QPoint(contours[i][0].x, contours[i][0].y));
+        for (vector<Point>::iterator it = contours[i].begin(); it != contours[i].end(); it++)
+            cutSelectPath.lineTo(QPoint((*it).x, (*it).y));
+        cutSelectPath.lineTo(QPoint(contours[i][0].x, contours[i][0].y));
+    }
+    QImage qStrokeMask = QImage(image.w, image.h, QImage::Format_RGB32);
+    qStrokeMask.fill(0);
+    QPainter pt;
+    pt.begin(&qStrokeMask);
+    pt.setBrush(Qt::white);
+    pt.setPen(Qt::NoPen);
+    pt.drawPath(cutSelectPath);
+    qStrokeMask.save((data["tmpdir"].as<string>()+"/2.png").c_str());
+    cerr << "Write mask to : " << (data["tmpdir"].as<string>()+"/2.png") << endl;
+
+    json res = json::object();
+    return res;
+}
+json MultilevelController::loadmask(json data) {
+    string img_name = data["tmpdir"].as<string>()+"/3.png";
+    cerr << "Load mask from : " << img_name << endl;
+    QImage mask(img_name.c_str());
+    MyImage image(mask.width(), mask.height());
+    for (int y=0; y<image.h; y++) {
+        QRgb* scanelineStrokeMask = (QRgb*)mask.scanLine(y);
+        for (int x=0; x<image.w; x++) {
+            int grayValue = qGray(scanelineStrokeMask[x]);
+            image.get(x,y) = 0;
+            if (grayValue>100) {
+                image.get(x,y) = 255;
+            }
+        }
+    }
+    vector<vector<pair<int,int>>> contours;
+    findContours(image, contours, true);
+    json arr1 = json::array();
+    for (int i=0; i<(int)contours.size(); i++) {
+        json arr2 = json::array();
+        for (int j=0; j<(int)contours[i].size(); j++) {
+            json point;
+            pair<int,int> p = contours[i][j];
+            point["x"] = p.first;
+            point["y"] = p.second;
+            arr2.add(point);
+        }
+        arr1.add(arr2);
+    }
+    json res = json::object();
+    res.set("contours", arr1);
+    return res;
+}
+
 json MultilevelController::load_region(json data) {
     lock_guard<mutex> lg(selection_lock);
     {

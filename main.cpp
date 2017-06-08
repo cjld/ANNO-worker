@@ -103,6 +103,14 @@ int main(int argc, char *argv[])
                 if (cmdstr == "load-region") {
                     json data = ctl.load_region(cmd["data"]);
                     res["data"].set("return", data);
+                } else
+                if (cmdstr == "drawmask") {
+                    json data = ctl.drawmask(cmd["data"]);
+                    res["data"].set("return", data);
+                } else
+                if (cmdstr == "loadmask") {
+                    json data = ctl.loadmask(cmd["data"]);
+                    res["data"].set("return", data);
                 } else {
                     res["status"] = "error";
                     res["error"] = string("command '")+cmdstr+("' not found");
