@@ -1192,6 +1192,7 @@ json MultilevelController::loadmask(json data) {
     string img_name = data["tmpdir"].as<string>()+"/3.png";
     cerr << "Load mask from : " << img_name << endl;
     QImage mask(img_name.c_str());
+    mask = mask.convertToFormat(QImage::Format_RGB32);
     MyImage image(mask.width(), mask.height());
     for (int y=0; y<image.h; y++) {
         QRgb* scanelineStrokeMask = (QRgb*)mask.scanLine(y);
